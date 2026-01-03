@@ -1,32 +1,38 @@
 export default function ConversationsSidebar({ conversations, selected, onSelect, searchTerm, onSearch }) {
   return (
-    <aside className="sidebar">
-      <div className="sidebar-header">
-        <h3>Conversations</h3>
+    <div className="wa-conversations">
+      <div className="wa-conversations-header">
+        <div>
+          <h3>Chats</h3>
+          <span className="wa-meta">{conversations.length} conversations</span>
+        </div>
         <input
           type="search"
           placeholder="Search conversations"
           value={searchTerm}
           onChange={(event) => onSearch(event.target.value)}
+          className="wa-search"
         />
       </div>
-      <div className="sidebar-list">
+      <div className="wa-conversations-list">
         {conversations.length === 0 && <p className="empty">No conversations yet.</p>}
         {conversations.map((convo) => (
           <button
             key={convo.id}
             type="button"
-            className={`sidebar-item ${selected?.id === convo.id ? "is-active" : ""}`}
+            className={`wa-convo ${selected?.id === convo.id ? "is-active" : ""}`}
             onClick={() => onSelect(convo)}
           >
             <div>
-              <h4>{convo.contact_name || "Unknown"}</h4>
-              <p>{convo.contact_number}</p>
+              <div className="wa-convo-name">{convo.contact_name || "Unknown"}</div>
+              <div className="wa-convo-meta">{convo.contact_number}</div>
             </div>
-            <span>{convo.last_message_at ? new Date(convo.last_message_at).toLocaleTimeString() : "--"}</span>
+            <span className="wa-convo-time">
+              {convo.last_message_at ? new Date(convo.last_message_at).toLocaleTimeString() : "--"}
+            </span>
           </button>
         ))}
       </div>
-    </aside>
+    </div>
   );
 }

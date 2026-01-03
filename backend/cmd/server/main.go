@@ -66,6 +66,10 @@ func main() {
 			waManager = manager
 		}
 	}
+	if waManager != nil {
+		waSyncer := whatsapp.NewSyncer(store, llmQueue, hub)
+		waManager.SetSyncer(waSyncer)
+	}
 
 	api := handlers.NewAPI(store, authService, hub, llmService, llmStore, llmQueue, healthScheduler, workerScheduler, waManager)
 	limiter := middleware.NewRateLimiter(60, time.Minute)

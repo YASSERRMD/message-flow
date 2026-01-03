@@ -11,14 +11,24 @@ import (
 )
 
 func StoreAnalysis(ctx context.Context, store *db.Store, tenantID, messageID int64, result *AnalysisResult) error {
-	payload, err := json.Marshal(result)
-	if err != nil {
-		return err
-	}
-
 	return store.WithTenantConn(ctx, tenantID, func(conn *pgxpool.Conn) error {
-		_, err := conn.Exec(ctx, `
-			UPDATE messages SET metadata_json=$1 WHERE id=$2 AND tenant_id=$3`, string(payload), messageID, tenantID)
+		var existing string
+		_ = conn.QueryRow(ctx, `
+			SELECT metadata_json FROM messages WHERE id=$1 AND tenant_id=$2`, messageID, tenantID).Scan(&existing)
+
+		payload := map[string]any{}
+		if existing != "" {
+			_ = json.Unmarshal([]byte(existing), &payload)
+		}
+		payload["analysis"] = result
+
+		encoded, err := json.Marshal(payload)
+		if err != nil {
+			return err
+		}
+
+		_, err = conn.Exec(ctx, `
+			UPDATE messages SET metadata_json=$1 WHERE id=$2 AND tenant_id=$3`, string(encoded), messageID, tenantID)
 		if err != nil {
 			return err
 		}

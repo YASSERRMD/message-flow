@@ -28,6 +28,7 @@ type Manager struct {
 	mu        sync.RWMutex
 	container *sqlstore.Container
 	sessions  map[string]*Session
+	syncer    *Syncer
 }
 
 func NewManager(ctx context.Context, databaseURL string) (*Manager, error) {
@@ -44,9 +45,18 @@ func NewManager(ctx context.Context, databaseURL string) (*Manager, error) {
 	}, nil
 }
 
+func (m *Manager) SetSyncer(syncer *Syncer) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.syncer = syncer
+}
+
 func (m *Manager) StartSession(ctx context.Context, tenantID int64) (*Session, error) {
 	device := m.container.NewDevice()
 	client := whatsmeow.NewClient(device, nil)
+	if m.syncer != nil {
+		m.syncer.Attach(tenantID, client)
+	}
 
 	qrChan, err := client.GetQRChannel(ctx)
 	if err != nil {

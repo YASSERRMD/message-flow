@@ -3,14 +3,15 @@ import DashboardPage from "./components/DashboardPage.jsx";
 import LLMProviderDashboard from "./components/llm/LLMProviderDashboard.jsx";
 import ErrorBoundary from "./components/llm/ErrorBoundary.jsx";
 import CollaborationPage from "./components/CollaborationPage.jsx";
+import useStoredState from "./hooks/useStoredState.js";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8081/api/v1";
 
 export default function App() {
   const [view, setView] = useState("operations");
   const [role, setRole] = useState("viewer");
-  const token = localStorage.getItem("mf-token") || "";
-  const csrf = localStorage.getItem("mf-csrf") || "";
+  const [token] = useStoredState("mf-token", "");
+  const [csrf] = useStoredState("mf-csrf", "");
 
   useEffect(() => {
     if (!token) return;
