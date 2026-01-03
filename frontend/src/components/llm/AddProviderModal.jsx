@@ -5,6 +5,10 @@ const defaultForm = {
   display_name: "",
   api_key: "",
   model_name: "",
+  base_url: "",
+  azure_endpoint: "",
+  azure_deployment: "",
+  azure_api_version: "",
   temperature: 0.7,
   max_tokens: 1000,
   cost_per_1k_input: 0,
@@ -29,6 +33,8 @@ export default function AddProviderModal({ open, onClose, onSubmit, providerMode
   const validate = () => {
     if (!form.api_key) return "API key is required";
     if (!form.model_name) return "Model is required";
+    if (form.provider_name === "azure_openai" && !form.azure_endpoint) return "Azure endpoint is required";
+    if (form.provider_name === "azure_openai" && !form.azure_deployment) return "Azure deployment is required";
     if (form.temperature < 0 || form.temperature > 2) return "Temperature must be between 0 and 2";
     if (form.max_tokens <= 0) return "Max tokens must be greater than 0";
     if (form.cost_per_1k_input < 0 || form.cost_per_1k_output < 0) return "Cost values must be >= 0";
@@ -77,6 +83,7 @@ export default function AddProviderModal({ open, onClose, onSubmit, providerMode
             <select value={form.provider_name} onChange={(e) => updateField("provider_name", e.target.value)}>
               <option value="claude">Claude</option>
               <option value="openai">OpenAI</option>
+              <option value="azure_openai">Azure OpenAI</option>
               <option value="cohere">Cohere</option>
               <option value="gemini">Gemini</option>
               <option value="anthropic">Anthropic</option>
@@ -107,6 +114,38 @@ export default function AddProviderModal({ open, onClose, onSubmit, providerMode
                 <option key={model} value={model}>{model}</option>
               ))}
             </select>
+          </label>
+          <label>
+            Base URL (OpenAI-compatible)
+            <input
+              placeholder="https://api.openai.com/v1"
+              value={form.base_url}
+              onChange={(e) => updateField("base_url", e.target.value)}
+            />
+          </label>
+          <label>
+            Azure endpoint
+            <input
+              placeholder="https://your-resource.openai.azure.com"
+              value={form.azure_endpoint}
+              onChange={(e) => updateField("azure_endpoint", e.target.value)}
+            />
+          </label>
+          <label>
+            Azure deployment
+            <input
+              placeholder="gpt-4o-prod"
+              value={form.azure_deployment}
+              onChange={(e) => updateField("azure_deployment", e.target.value)}
+            />
+          </label>
+          <label>
+            Azure API version
+            <input
+              placeholder="2024-02-15-preview"
+              value={form.azure_api_version}
+              onChange={(e) => updateField("azure_api_version", e.target.value)}
+            />
           </label>
           <label>
             Temperature

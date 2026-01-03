@@ -23,7 +23,7 @@ func (s *Store) ListProviders(ctx context.Context, tenantID int64) ([]ProviderCo
 	var configs []ProviderConfig
 	err := s.DB.WithTenantConn(ctx, tenantID, func(conn *pgxpool.Conn) error {
 		rows, err := conn.Query(ctx, `
-			SELECT id, provider_name, api_key, model_name, temperature, max_tokens, cost_per_1k_input, cost_per_1k_output, max_requests_per_minute
+			SELECT id, provider_name, api_key, model_name, base_url, azure_endpoint, azure_deployment, azure_api_version, temperature, max_tokens, cost_per_1k_input, cost_per_1k_output, max_requests_per_minute
 			FROM llm_providers
 			WHERE tenant_id=$1 AND is_active=TRUE
 			ORDER BY is_default DESC, id ASC`, tenantID)
@@ -34,7 +34,7 @@ func (s *Store) ListProviders(ctx context.Context, tenantID int64) ([]ProviderCo
 
 		for rows.Next() {
 			var cfg ProviderConfig
-			if err := rows.Scan(&cfg.ID, &cfg.ProviderName, &cfg.APIKey, &cfg.ModelName, &cfg.Temperature, &cfg.MaxTokens, &cfg.CostPer1KInput, &cfg.CostPer1KOutput, &cfg.MaxRequestsPerMinute); err != nil {
+			if err := rows.Scan(&cfg.ID, &cfg.ProviderName, &cfg.APIKey, &cfg.ModelName, &cfg.BaseURL, &cfg.AzureEndpoint, &cfg.AzureDeployment, &cfg.AzureAPIVersion, &cfg.Temperature, &cfg.MaxTokens, &cfg.CostPer1KInput, &cfg.CostPer1KOutput, &cfg.MaxRequestsPerMinute); err != nil {
 				return err
 			}
 			if decrypted, err := crypto.Decrypt(s.MasterKey, cfg.APIKey); err == nil {
@@ -51,11 +51,11 @@ func (s *Store) GetDefaultProvider(ctx context.Context, tenantID int64) (*Provid
 	var cfg ProviderConfig
 	err := s.DB.WithTenantConn(ctx, tenantID, func(conn *pgxpool.Conn) error {
 		row := conn.QueryRow(ctx, `
-			SELECT id, provider_name, api_key, model_name, temperature, max_tokens, cost_per_1k_input, cost_per_1k_output, max_requests_per_minute
+			SELECT id, provider_name, api_key, model_name, base_url, azure_endpoint, azure_deployment, azure_api_version, temperature, max_tokens, cost_per_1k_input, cost_per_1k_output, max_requests_per_minute
 			FROM llm_providers
 			WHERE tenant_id=$1 AND is_default=TRUE AND is_active=TRUE
 			LIMIT 1`, tenantID)
-		if err := row.Scan(&cfg.ID, &cfg.ProviderName, &cfg.APIKey, &cfg.ModelName, &cfg.Temperature, &cfg.MaxTokens, &cfg.CostPer1KInput, &cfg.CostPer1KOutput, &cfg.MaxRequestsPerMinute); err != nil {
+		if err := row.Scan(&cfg.ID, &cfg.ProviderName, &cfg.APIKey, &cfg.ModelName, &cfg.BaseURL, &cfg.AzureEndpoint, &cfg.AzureDeployment, &cfg.AzureAPIVersion, &cfg.Temperature, &cfg.MaxTokens, &cfg.CostPer1KInput, &cfg.CostPer1KOutput, &cfg.MaxRequestsPerMinute); err != nil {
 			return err
 		}
 		if decrypted, err := crypto.Decrypt(s.MasterKey, cfg.APIKey); err == nil {
@@ -73,10 +73,10 @@ func (s *Store) GetProviderByID(ctx context.Context, tenantID int64, providerID 
 	var cfg ProviderConfig
 	err := s.DB.WithTenantConn(ctx, tenantID, func(conn *pgxpool.Conn) error {
 		row := conn.QueryRow(ctx, `
-			SELECT id, provider_name, api_key, model_name, temperature, max_tokens, cost_per_1k_input, cost_per_1k_output, max_requests_per_minute
+			SELECT id, provider_name, api_key, model_name, base_url, azure_endpoint, azure_deployment, azure_api_version, temperature, max_tokens, cost_per_1k_input, cost_per_1k_output, max_requests_per_minute
 			FROM llm_providers
 			WHERE tenant_id=$1 AND id=$2`, tenantID, providerID)
-		if err := row.Scan(&cfg.ID, &cfg.ProviderName, &cfg.APIKey, &cfg.ModelName, &cfg.Temperature, &cfg.MaxTokens, &cfg.CostPer1KInput, &cfg.CostPer1KOutput, &cfg.MaxRequestsPerMinute); err != nil {
+		if err := row.Scan(&cfg.ID, &cfg.ProviderName, &cfg.APIKey, &cfg.ModelName, &cfg.BaseURL, &cfg.AzureEndpoint, &cfg.AzureDeployment, &cfg.AzureAPIVersion, &cfg.Temperature, &cfg.MaxTokens, &cfg.CostPer1KInput, &cfg.CostPer1KOutput, &cfg.MaxRequestsPerMinute); err != nil {
 			return err
 		}
 		if decrypted, err := crypto.Decrypt(s.MasterKey, cfg.APIKey); err == nil {

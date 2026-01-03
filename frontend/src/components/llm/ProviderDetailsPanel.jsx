@@ -9,6 +9,10 @@ export default function ProviderDetailsPanel({ provider, onClose, onUpdate, head
       setForm({
         display_name: provider.display_name || "",
         model_name: provider.model_name,
+        base_url: provider.base_url || "",
+        azure_endpoint: provider.azure_endpoint || "",
+        azure_deployment: provider.azure_deployment || "",
+        azure_api_version: provider.azure_api_version || "",
         temperature: provider.temperature,
         max_tokens: provider.max_tokens,
         cost_per_1k_input: provider.cost_per_1k_input,
@@ -66,6 +70,22 @@ export default function ProviderDetailsPanel({ provider, onClose, onUpdate, head
         <label>
           Model
           <input value={form.model_name} onChange={(e) => updateField("model_name", e.target.value)} />
+        </label>
+        <label>
+          Base URL
+          <input value={form.base_url} onChange={(e) => updateField("base_url", e.target.value)} />
+        </label>
+        <label>
+          Azure endpoint
+          <input value={form.azure_endpoint} onChange={(e) => updateField("azure_endpoint", e.target.value)} />
+        </label>
+        <label>
+          Azure deployment
+          <input value={form.azure_deployment} onChange={(e) => updateField("azure_deployment", e.target.value)} />
+        </label>
+        <label>
+          Azure API version
+          <input value={form.azure_api_version} onChange={(e) => updateField("azure_api_version", e.target.value)} />
         </label>
         <label>
           Temperature

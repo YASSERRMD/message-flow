@@ -77,6 +77,10 @@ type LLMProvider struct {
 	APIKey               string     `json:"api_key"`
 	ModelName            string     `json:"model_name"`
 	DisplayName          *string    `json:"display_name"`
+	BaseURL              *string    `json:"base_url"`
+	AzureEndpoint        *string    `json:"azure_endpoint"`
+	AzureDeployment      *string    `json:"azure_deployment"`
+	AzureAPIVersion      *string    `json:"azure_api_version"`
 	Temperature          float64    `json:"temperature"`
 	MaxTokens            int        `json:"max_tokens"`
 	CostPer1KInput       float64    `json:"cost_per_1k_input"`

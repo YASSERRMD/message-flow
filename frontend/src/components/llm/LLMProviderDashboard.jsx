@@ -14,6 +14,7 @@ const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8080/api/v1"
 const providerModels = {
   claude: ["claude-3-opus-20240229", "claude-3-sonnet-20240229"],
   openai: ["gpt-4-turbo", "gpt-4o", "gpt-4.1"],
+  azure_openai: ["gpt-4o", "gpt-4.1", "gpt-35-turbo"],
   cohere: ["command-r-plus", "command-r"],
   gemini: ["gemini-1.5-pro", "gemini-1.5-flash"],
   anthropic: ["claude-3-opus-20240229"]

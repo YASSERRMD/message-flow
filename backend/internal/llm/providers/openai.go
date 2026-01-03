@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -23,7 +24,7 @@ type OpenAIProvider struct {
 }
 
 func NewOpenAIProvider(config *contract.ProviderConfig) *OpenAIProvider {
-	client := openai.NewClient(option.WithAPIKey(config.APIKey))
+	client := buildOpenAIClient(config)
 	return &OpenAIProvider{
 		client:  client,
 		config:  config,
@@ -31,7 +32,7 @@ func NewOpenAIProvider(config *contract.ProviderConfig) *OpenAIProvider {
 	}
 }
 
-func (o *OpenAIProvider) Name() string { return "openai" }
+func (o *OpenAIProvider) Name() string { return o.config.ProviderName }
 
 func (o *OpenAIProvider) GetConfig() *contract.ProviderConfig { return o.config }
 
@@ -49,7 +50,7 @@ func (o *OpenAIProvider) Analyze(ctx context.Context, message string) (*contract
 	err := o.retrier.Do(ctx, func() error {
 		format := shared.NewResponseFormatJSONObjectParam()
 		result, err := o.client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
-			Model:       shared.ChatModel(o.config.ModelName),
+			Model:       shared.ChatModel(o.effectiveModel()),
 			Temperature: openai.Float(o.config.Temperature),
 			MaxTokens:   openai.Int(int64(o.config.MaxTokens)),
 			ResponseFormat: openai.ChatCompletionNewParamsResponseFormatUnion{
@@ -93,7 +94,7 @@ func (o *OpenAIProvider) Summarize(ctx context.Context, messages []string) (*con
 	err := o.retrier.Do(ctx, func() error {
 		format := shared.NewResponseFormatJSONObjectParam()
 		result, err := o.client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
-			Model:       shared.ChatModel(o.config.ModelName),
+			Model:       shared.ChatModel(o.effectiveModel()),
 			Temperature: openai.Float(o.config.Temperature),
 			MaxTokens:   openai.Int(int64(o.config.MaxTokens)),
 			ResponseFormat: openai.ChatCompletionNewParamsResponseFormatUnion{
@@ -137,7 +138,7 @@ func (o *OpenAIProvider) ExtractActions(ctx context.Context, text string) ([]str
 	err := o.retrier.Do(ctx, func() error {
 		format := shared.NewResponseFormatJSONObjectParam()
 		result, err := o.client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
-			Model:       shared.ChatModel(o.config.ModelName),
+			Model:       shared.ChatModel(o.effectiveModel()),
 			Temperature: openai.Float(o.config.Temperature),
 			MaxTokens:   openai.Int(int64(o.config.MaxTokens)),
 			ResponseFormat: openai.ChatCompletionNewParamsResponseFormatUnion{
@@ -180,7 +181,7 @@ func (o *OpenAIProvider) HealthCheck(ctx context.Context) (*contract.HealthCheck
 
 	start := time.Now()
 	_, err := o.client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
-		Model:       shared.ChatModel(o.config.ModelName),
+		Model:       shared.ChatModel(o.effectiveModel()),
 		Temperature: openai.Float(0),
 		Messages: []openai.ChatCompletionMessageParamUnion{
 			userMessage(prompt),
@@ -247,4 +248,38 @@ func userMessage(content string) openai.ChatCompletionMessageParamUnion {
 			},
 		},
 	}
+}
+
+func buildOpenAIClient(config *contract.ProviderConfig) openai.Client {
+	opts := []option.RequestOption{option.WithAPIKey(config.APIKey)}
+	if config.BaseURL != "" {
+		opts = append(opts, option.WithBaseURL(config.BaseURL))
+	}
+	if config.ProviderName == "azure_openai" || config.AzureEndpoint != "" {
+		endpoint := strings.TrimRight(config.AzureEndpoint, "/")
+		deployment := config.AzureDeployment
+		if deployment == "" {
+			deployment = config.ModelName
+		}
+		if endpoint != "" && deployment != "" {
+			opts = append(opts, option.WithBaseURL(fmt.Sprintf("%s/openai/deployments/%s", endpoint, deployment)))
+		}
+		apiVersion := config.AzureAPIVersion
+		if apiVersion == "" {
+			apiVersion = "2024-02-15-preview"
+		}
+		opts = append(opts,
+			option.WithQuery("api-version", apiVersion),
+			option.WithHeader("api-key", config.APIKey),
+			option.WithHeaderDel("authorization"),
+		)
+	}
+	return openai.NewClient(opts...)
+}
+
+func (o *OpenAIProvider) effectiveModel() string {
+	if o.config.AzureDeployment != "" {
+		return o.config.AzureDeployment
+	}
+	return o.config.ModelName
 }

@@ -10,3 +10,4 @@ psql "$DATABASE_URL" -f /migrations/002_phase2_llm.sql
 psql "$DATABASE_URL" -f /migrations/003_phase3_llm_management.sql
 psql "$DATABASE_URL" -f /migrations/004_phase3_llm_provider_fields.sql
 psql "$DATABASE_URL" -f /migrations/005_phase4_team_collaboration.sql
+psql "$DATABASE_URL" -f /migrations/006_llm_provider_endpoints.sql

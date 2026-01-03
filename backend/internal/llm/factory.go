@@ -19,7 +19,7 @@ func (f *Factory) CreateProvider(config *ProviderConfig) Provider {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	key := config.ProviderName + ":" + config.ModelName
+	key := config.ProviderName + ":" + config.ModelName + ":" + config.BaseURL + ":" + config.AzureEndpoint + ":" + config.AzureDeployment
 	if provider, ok := f.instances[key]; ok {
 		return provider
 	}
@@ -29,6 +29,8 @@ func (f *Factory) CreateProvider(config *ProviderConfig) Provider {
 	case "claude":
 		provider = providers.NewClaudeProvider(config)
 	case "openai":
+		provider = providers.NewOpenAIProvider(config)
+	case "azure_openai":
 		provider = providers.NewOpenAIProvider(config)
 	case "cohere":
 		provider = providers.NewCohereProvider(config)

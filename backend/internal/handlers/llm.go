@@ -23,6 +23,10 @@ type providerRequest struct {
 	APIKey               string   `json:"api_key"`
 	DisplayName          *string  `json:"display_name"`
 	ModelName            string   `json:"model_name"`
+	BaseURL              *string  `json:"base_url"`
+	AzureEndpoint        *string  `json:"azure_endpoint"`
+	AzureDeployment      *string  `json:"azure_deployment"`
+	AzureAPIVersion      *string  `json:"azure_api_version"`
 	Temperature          *float64 `json:"temperature"`
 	MaxTokens            *int     `json:"max_tokens"`
 	CostPer1KInput       *float64 `json:"cost_per_1k_input"`
@@ -76,6 +80,18 @@ func (a *API) CreateProvider(w http.ResponseWriter, r *http.Request) {
 	if req.ModelName != "" {
 		config.ModelName = req.ModelName
 	}
+	if req.BaseURL != nil {
+		config.BaseURL = *req.BaseURL
+	}
+	if req.AzureEndpoint != nil {
+		config.AzureEndpoint = *req.AzureEndpoint
+	}
+	if req.AzureDeployment != nil {
+		config.AzureDeployment = *req.AzureDeployment
+	}
+	if req.AzureAPIVersion != nil {
+		config.AzureAPIVersion = *req.AzureAPIVersion
+	}
 	if req.Temperature != nil {
 		config.Temperature = *req.Temperature
 	}
@@ -124,11 +140,11 @@ func (a *API) CreateProvider(w http.ResponseWriter, r *http.Request) {
 			_, _ = conn.Exec(ctx, `UPDATE llm_providers SET is_default=FALSE WHERE tenant_id=$1`, tenantID)
 		}
 		query := `
-			INSERT INTO llm_providers (tenant_id, provider_name, api_key, model_name, display_name, temperature, max_tokens, cost_per_1k_input, cost_per_1k_output, max_requests_per_minute, max_requests_per_day, monthly_budget, is_active, is_default, is_fallback, health_status, created_at)
-			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'unknown',$16)
-			RETURNING id, tenant_id, provider_name, model_name, display_name, temperature, max_tokens, cost_per_1k_input, cost_per_1k_output, max_requests_per_minute, max_requests_per_day, monthly_budget, is_active, is_default, is_fallback, health_status, last_health_check, created_at`
-		return conn.QueryRow(ctx, query, tenantID, config.ProviderName, encrypted, config.ModelName, req.DisplayName, config.Temperature, config.MaxTokens, config.CostPer1KInput, config.CostPer1KOutput, config.MaxRequestsPerMinute, maxPerDay, req.MonthlyBudget, isActive, isDefault, isFallback, time.Now().UTC()).Scan(
-			&provider.ID, &provider.TenantID, &provider.ProviderName, &provider.ModelName, &provider.DisplayName, &provider.Temperature, &provider.MaxTokens, &provider.CostPer1KInput, &provider.CostPer1KOutput, &provider.MaxRequestsPerMinute, &provider.MaxRequestsPerDay, &provider.MonthlyBudget, &provider.IsActive, &provider.IsDefault, &provider.IsFallback, &provider.HealthStatus, &provider.LastHealthCheck, &provider.CreatedAt,
+			INSERT INTO llm_providers (tenant_id, provider_name, api_key, model_name, display_name, base_url, azure_endpoint, azure_deployment, azure_api_version, temperature, max_tokens, cost_per_1k_input, cost_per_1k_output, max_requests_per_minute, max_requests_per_day, monthly_budget, is_active, is_default, is_fallback, health_status, created_at)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,'unknown',$20)
+			RETURNING id, tenant_id, provider_name, model_name, display_name, base_url, azure_endpoint, azure_deployment, azure_api_version, temperature, max_tokens, cost_per_1k_input, cost_per_1k_output, max_requests_per_minute, max_requests_per_day, monthly_budget, is_active, is_default, is_fallback, health_status, last_health_check, created_at`
+		return conn.QueryRow(ctx, query, tenantID, config.ProviderName, encrypted, config.ModelName, req.DisplayName, req.BaseURL, req.AzureEndpoint, req.AzureDeployment, req.AzureAPIVersion, config.Temperature, config.MaxTokens, config.CostPer1KInput, config.CostPer1KOutput, config.MaxRequestsPerMinute, maxPerDay, req.MonthlyBudget, isActive, isDefault, isFallback, time.Now().UTC()).Scan(
+			&provider.ID, &provider.TenantID, &provider.ProviderName, &provider.ModelName, &provider.DisplayName, &provider.BaseURL, &provider.AzureEndpoint, &provider.AzureDeployment, &provider.AzureAPIVersion, &provider.Temperature, &provider.MaxTokens, &provider.CostPer1KInput, &provider.CostPer1KOutput, &provider.MaxRequestsPerMinute, &provider.MaxRequestsPerDay, &provider.MonthlyBudget, &provider.IsActive, &provider.IsDefault, &provider.IsFallback, &provider.HealthStatus, &provider.LastHealthCheck, &provider.CreatedAt,
 		)
 	}); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to create provider")
@@ -155,7 +171,7 @@ func (a *API) ListProviders(w http.ResponseWriter, r *http.Request) {
 	providers := []models.LLMProvider{}
 	if err := a.Store.WithTenantConn(ctx, tenantID, func(conn *pgxpool.Conn) error {
 		rows, err := conn.Query(ctx, `
-			SELECT id, tenant_id, provider_name, model_name, display_name, temperature, max_tokens, cost_per_1k_input, cost_per_1k_output, max_requests_per_minute, max_requests_per_day, monthly_budget, is_active, is_default, is_fallback, health_status, last_health_check, created_at
+			SELECT id, tenant_id, provider_name, model_name, display_name, base_url, azure_endpoint, azure_deployment, azure_api_version, temperature, max_tokens, cost_per_1k_input, cost_per_1k_output, max_requests_per_minute, max_requests_per_day, monthly_budget, is_active, is_default, is_fallback, health_status, last_health_check, created_at
 			FROM llm_providers
 			WHERE tenant_id=$1
 			ORDER BY id DESC`, tenantID)
@@ -165,7 +181,7 @@ func (a *API) ListProviders(w http.ResponseWriter, r *http.Request) {
 		defer rows.Close()
 		for rows.Next() {
 			var item models.LLMProvider
-			if err := rows.Scan(&item.ID, &item.TenantID, &item.ProviderName, &item.ModelName, &item.DisplayName, &item.Temperature, &item.MaxTokens, &item.CostPer1KInput, &item.CostPer1KOutput, &item.MaxRequestsPerMinute, &item.MaxRequestsPerDay, &item.MonthlyBudget, &item.IsActive, &item.IsDefault, &item.IsFallback, &item.HealthStatus, &item.LastHealthCheck, &item.CreatedAt); err != nil {
+			if err := rows.Scan(&item.ID, &item.TenantID, &item.ProviderName, &item.ModelName, &item.DisplayName, &item.BaseURL, &item.AzureEndpoint, &item.AzureDeployment, &item.AzureAPIVersion, &item.Temperature, &item.MaxTokens, &item.CostPer1KInput, &item.CostPer1KOutput, &item.MaxRequestsPerMinute, &item.MaxRequestsPerDay, &item.MonthlyBudget, &item.IsActive, &item.IsDefault, &item.IsFallback, &item.HealthStatus, &item.LastHealthCheck, &item.CreatedAt); err != nil {
 				return err
 			}
 			item.APIKey = "****"
@@ -187,10 +203,10 @@ func (a *API) GetProvider(w http.ResponseWriter, r *http.Request, providerID int
 	var provider models.LLMProvider
 	if err := a.Store.WithTenantConn(ctx, tenantID, func(conn *pgxpool.Conn) error {
 		query := `
-			SELECT id, tenant_id, provider_name, model_name, display_name, temperature, max_tokens, cost_per_1k_input, cost_per_1k_output, max_requests_per_minute, max_requests_per_day, monthly_budget, is_active, is_default, is_fallback, health_status, last_health_check, created_at
+			SELECT id, tenant_id, provider_name, model_name, display_name, base_url, azure_endpoint, azure_deployment, azure_api_version, temperature, max_tokens, cost_per_1k_input, cost_per_1k_output, max_requests_per_minute, max_requests_per_day, monthly_budget, is_active, is_default, is_fallback, health_status, last_health_check, created_at
 			FROM llm_providers WHERE tenant_id=$1 AND id=$2`
 		return conn.QueryRow(ctx, query, tenantID, providerID).Scan(
-			&provider.ID, &provider.TenantID, &provider.ProviderName, &provider.ModelName, &provider.DisplayName, &provider.Temperature, &provider.MaxTokens, &provider.CostPer1KInput, &provider.CostPer1KOutput, &provider.MaxRequestsPerMinute, &provider.MaxRequestsPerDay, &provider.MonthlyBudget, &provider.IsActive, &provider.IsDefault, &provider.IsFallback, &provider.HealthStatus, &provider.LastHealthCheck, &provider.CreatedAt,
+			&provider.ID, &provider.TenantID, &provider.ProviderName, &provider.ModelName, &provider.DisplayName, &provider.BaseURL, &provider.AzureEndpoint, &provider.AzureDeployment, &provider.AzureAPIVersion, &provider.Temperature, &provider.MaxTokens, &provider.CostPer1KInput, &provider.CostPer1KOutput, &provider.MaxRequestsPerMinute, &provider.MaxRequestsPerDay, &provider.MonthlyBudget, &provider.IsActive, &provider.IsDefault, &provider.IsFallback, &provider.HealthStatus, &provider.LastHealthCheck, &provider.CreatedAt,
 		)
 	}); err != nil {
 		writeError(w, http.StatusNotFound, "provider not found")
@@ -242,20 +258,24 @@ func (a *API) UpdateProvider(w http.ResponseWriter, r *http.Request, providerID 
 			    api_key=COALESCE($2, api_key),
 			    model_name=COALESCE($3, model_name),
 			    display_name=COALESCE($4, display_name),
-			    temperature=COALESCE($5, temperature),
-			    max_tokens=COALESCE($6, max_tokens),
-			    cost_per_1k_input=COALESCE($7, cost_per_1k_input),
-			    cost_per_1k_output=COALESCE($8, cost_per_1k_output),
-			    max_requests_per_minute=COALESCE($9, max_requests_per_minute),
-			    max_requests_per_day=COALESCE($10, max_requests_per_day),
-			    monthly_budget=COALESCE($11, monthly_budget),
-			    is_active=COALESCE($12, is_active),
-			    is_default=COALESCE($13, is_default),
-			    is_fallback=COALESCE($14, is_fallback)
-			WHERE tenant_id=$15 AND id=$16
-			RETURNING id, tenant_id, provider_name, model_name, display_name, temperature, max_tokens, cost_per_1k_input, cost_per_1k_output, max_requests_per_minute, max_requests_per_day, monthly_budget, is_active, is_default, is_fallback, health_status, last_health_check, created_at`
-		return conn.QueryRow(ctx, query, emptyString(req.ProviderName), encrypted, emptyString(req.ModelName), req.DisplayName, req.Temperature, req.MaxTokens, req.CostPer1KInput, req.CostPer1KOutput, req.MaxRequestsPerMinute, req.MaxRequestsPerDay, req.MonthlyBudget, req.IsActive, req.IsDefault, req.IsFallback, tenantID, providerID).Scan(
-			&provider.ID, &provider.TenantID, &provider.ProviderName, &provider.ModelName, &provider.DisplayName, &provider.Temperature, &provider.MaxTokens, &provider.CostPer1KInput, &provider.CostPer1KOutput, &provider.MaxRequestsPerMinute, &provider.MaxRequestsPerDay, &provider.MonthlyBudget, &provider.IsActive, &provider.IsDefault, &provider.IsFallback, &provider.HealthStatus, &provider.LastHealthCheck, &provider.CreatedAt,
+			    base_url=COALESCE($5, base_url),
+			    azure_endpoint=COALESCE($6, azure_endpoint),
+			    azure_deployment=COALESCE($7, azure_deployment),
+			    azure_api_version=COALESCE($8, azure_api_version),
+			    temperature=COALESCE($9, temperature),
+			    max_tokens=COALESCE($10, max_tokens),
+			    cost_per_1k_input=COALESCE($11, cost_per_1k_input),
+			    cost_per_1k_output=COALESCE($12, cost_per_1k_output),
+			    max_requests_per_minute=COALESCE($13, max_requests_per_minute),
+			    max_requests_per_day=COALESCE($14, max_requests_per_day),
+			    monthly_budget=COALESCE($15, monthly_budget),
+			    is_active=COALESCE($16, is_active),
+			    is_default=COALESCE($17, is_default),
+			    is_fallback=COALESCE($18, is_fallback)
+			WHERE tenant_id=$19 AND id=$20
+			RETURNING id, tenant_id, provider_name, model_name, display_name, base_url, azure_endpoint, azure_deployment, azure_api_version, temperature, max_tokens, cost_per_1k_input, cost_per_1k_output, max_requests_per_minute, max_requests_per_day, monthly_budget, is_active, is_default, is_fallback, health_status, last_health_check, created_at`
+		return conn.QueryRow(ctx, query, emptyString(req.ProviderName), encrypted, emptyString(req.ModelName), req.DisplayName, req.BaseURL, req.AzureEndpoint, req.AzureDeployment, req.AzureAPIVersion, req.Temperature, req.MaxTokens, req.CostPer1KInput, req.CostPer1KOutput, req.MaxRequestsPerMinute, req.MaxRequestsPerDay, req.MonthlyBudget, req.IsActive, req.IsDefault, req.IsFallback, tenantID, providerID).Scan(
+			&provider.ID, &provider.TenantID, &provider.ProviderName, &provider.ModelName, &provider.DisplayName, &provider.BaseURL, &provider.AzureEndpoint, &provider.AzureDeployment, &provider.AzureAPIVersion, &provider.Temperature, &provider.MaxTokens, &provider.CostPer1KInput, &provider.CostPer1KOutput, &provider.MaxRequestsPerMinute, &provider.MaxRequestsPerDay, &provider.MonthlyBudget, &provider.IsActive, &provider.IsDefault, &provider.IsFallback, &provider.HealthStatus, &provider.LastHealthCheck, &provider.CreatedAt,
 		)
 	}); err != nil {
 		writeError(w, http.StatusNotFound, "provider not found")
@@ -1169,6 +1189,17 @@ func defaultProviderConfig(provider string) *llm.ProviderConfig {
 			CostPer1KOutput:      0.03,
 			MaxRequestsPerMinute: 60,
 		}
+	case "azure_openai":
+		return &llm.ProviderConfig{
+			ProviderName:         "azure_openai",
+			ModelName:            "gpt-4o",
+			AzureAPIVersion:      "2024-02-15-preview",
+			Temperature:          0.2,
+			MaxTokens:            1024,
+			CostPer1KInput:       0.01,
+			CostPer1KOutput:      0.03,
+			MaxRequestsPerMinute: 60,
+		}
 	case "cohere":
 		return &llm.ProviderConfig{
 			ProviderName:         "cohere",
@@ -1219,6 +1250,10 @@ func providerSnapshot(provider models.LLMProvider) map[string]any {
 		"provider_name":           provider.ProviderName,
 		"model_name":              provider.ModelName,
 		"display_name":            provider.DisplayName,
+		"base_url":                provider.BaseURL,
+		"azure_endpoint":          provider.AzureEndpoint,
+		"azure_deployment":        provider.AzureDeployment,
+		"azure_api_version":       provider.AzureAPIVersion,
 		"temperature":             provider.Temperature,
 		"max_tokens":              provider.MaxTokens,
 		"cost_per_1k_input":       provider.CostPer1KInput,

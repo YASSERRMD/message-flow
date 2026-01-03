@@ -20,6 +20,10 @@ type ProviderConfig struct {
 	ProviderName         string
 	APIKey               string
 	ModelName            string
+	BaseURL              string
+	AzureEndpoint        string
+	AzureDeployment      string
+	AzureAPIVersion      string
 	Temperature          float64
 	MaxTokens            int
 	CostPer1KInput       float64
