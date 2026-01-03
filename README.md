@@ -7,6 +7,9 @@ MessageFlow is a multi-tenant WhatsApp message management dashboard built with G
 - React dashboard (`frontend`) with componentized UI, WebSocket updates, and theme toggle.
 - PostgreSQL with tenant-isolated schema.
 
+## WhatsApp Integration
+MessageFlow uses `whatsmeow` for WhatsApp connectivity. WhatsApp integration is powered by an unofficial library and is not endorsed by WhatsApp. Use at your own risk and ensure compliance with WhatsApp policies.
+
 ## Environment
 Backend environment variables:
 - `DATABASE_URL` (required)
