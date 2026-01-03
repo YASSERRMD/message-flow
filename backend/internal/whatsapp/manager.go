@@ -55,6 +55,55 @@ func (m *Manager) SetSyncer(syncer *Syncer) {
 	m.syncer = syncer
 }
 
+// AutoReconnect reconnects all existing logged-in devices on startup
+func (m *Manager) AutoReconnect(ctx context.Context) error {
+	devices, err := m.container.GetAllDevices(ctx)
+	if err != nil {
+		m.log.Warnf("Failed to get devices: %v", err)
+		return err
+	}
+
+	m.log.Infof("Found %d stored device(s)", len(devices))
+
+	for _, device := range devices {
+		if device.ID == nil {
+			continue
+		}
+
+		m.log.Infof("Reconnecting device: %s", device.ID.String())
+
+		clientLog := waLog.Stdout("Client", "DEBUG", true)
+		client := whatsmeow.NewClient(device, clientLog)
+
+		// Attach syncer with default tenant 1 (you may want to store tenant per device)
+		if m.syncer != nil {
+			m.syncer.Attach(1, client)
+		}
+
+		if err := client.Connect(); err != nil {
+			m.log.Errorf("Failed to reconnect device %s: %v", device.ID.String(), err)
+			continue
+		}
+
+		session := &Session{
+			ID:        uuid.NewString(),
+			TenantID:  1,
+			Client:    client,
+			Status:    "connected",
+			CreatedAt: time.Now().UTC(),
+			UpdatedAt: time.Now().UTC(),
+		}
+
+		m.mu.Lock()
+		m.sessions[session.ID] = session
+		m.mu.Unlock()
+
+		m.log.Infof("Successfully reconnected device: %s", device.ID.String())
+	}
+
+	return nil
+}
+
 func (m *Manager) StartSession(ctx context.Context, tenantID int64) (*Session, error) {
 	// Try to get an existing device first
 	device, err := m.container.GetFirstDevice(ctx)

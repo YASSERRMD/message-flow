@@ -3,6 +3,7 @@ package whatsapp
 import (
 	"context"
 	"encoding/json"
+	"log"
 	"strings"
 	"time"
 
@@ -30,18 +31,24 @@ func NewSyncer(store *db.Store, queue *llm.Queue, hub *realtime.Hub) *Syncer {
 
 func (s *Syncer) Attach(tenantID int64, client *whatsmeow.Client) {
 	if s == nil || client == nil || s.Store == nil {
+		log.Printf("[Syncer] Cannot attach: s=%v, client=%v, store=%v", s != nil, client != nil, s != nil && s.Store != nil)
 		return
 	}
+	log.Printf("[Syncer] Attaching event handler for tenant %d", tenantID)
 	client.AddEventHandler(func(evt any) {
 		ctx := context.Background()
 		switch event := evt.(type) {
 		case *events.Message:
+			log.Printf("[Syncer] Received *events.Message from %s", event.Info.Chat.String())
 			s.handleMessage(ctx, tenantID, client, event.Info, event.Message, event.Info.Chat, event.Info.PushName)
 		case events.Message:
+			log.Printf("[Syncer] Received events.Message from %s", event.Info.Chat.String())
 			s.handleMessage(ctx, tenantID, client, event.Info, event.Message, event.Info.Chat, event.Info.PushName)
 		case *events.HistorySync:
+			log.Printf("[Syncer] Received *events.HistorySync with %d conversations", len(event.Data.GetConversations()))
 			s.handleHistorySync(ctx, tenantID, client, event)
 		case events.HistorySync:
+			log.Printf("[Syncer] Received events.HistorySync with %d conversations", len(event.Data.GetConversations()))
 			s.handleHistorySync(ctx, tenantID, client, &event)
 		}
 	})

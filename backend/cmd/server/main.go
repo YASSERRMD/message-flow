@@ -69,6 +69,13 @@ func main() {
 	if waManager != nil {
 		waSyncer := whatsapp.NewSyncer(store, llmQueue, hub)
 		waManager.SetSyncer(waSyncer)
+		// Auto-reconnect existing WhatsApp sessions on startup
+		go func() {
+			reconnectCtx := context.Background()
+			if err := waManager.AutoReconnect(reconnectCtx); err != nil {
+				log.Printf("whatsapp auto-reconnect error: %v", err)
+			}
+		}()
 	}
 
 	api := handlers.NewAPI(store, authService, hub, llmService, llmStore, llmQueue, healthScheduler, workerScheduler, waManager)
