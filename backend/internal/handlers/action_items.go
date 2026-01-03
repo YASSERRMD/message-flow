@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"time"
 
@@ -17,6 +18,7 @@ type createActionItemRequest struct {
 	Status         string  `json:"status"`
 	AssignedTo     *int64  `json:"assigned_to"`
 	DueDate        *string `json:"due_date"`
+	Watchers       []int64 `json:"watchers"`
 }
 
 type updateActionItemRequest struct {
@@ -24,6 +26,7 @@ type updateActionItemRequest struct {
 	Status      *string `json:"status"`
 	AssignedTo  *int64  `json:"assigned_to"`
 	DueDate     *string `json:"due_date"`
+	Watchers    []int64 `json:"watchers"`
 }
 
 func (a *API) CreateActionItem(w http.ResponseWriter, r *http.Request) {
@@ -38,7 +41,7 @@ func (a *API) CreateActionItem(w http.ResponseWriter, r *http.Request) {
 	}
 	status := req.Status
 	if status == "" {
-		status = "open"
+		status = "new"
 	}
 
 	var dueDate *time.Time
@@ -55,15 +58,26 @@ func (a *API) CreateActionItem(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
+	var watchersJSON *string
+	if len(req.Watchers) > 0 {
+		raw, err := json.Marshal(req.Watchers)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid watchers list")
+			return
+		}
+		value := string(raw)
+		watchersJSON = &value
+	}
+
 	var item models.ActionItem
 	query := `
-		INSERT INTO action_items (tenant_id, conversation_id, description, status, assigned_to, due_date, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
-		RETURNING id, tenant_id, conversation_id, description, status, assigned_to, due_date, created_at`
+		INSERT INTO action_items (tenant_id, conversation_id, description, status, assigned_to, due_date, watchers_json, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		RETURNING id, tenant_id, conversation_id, description, status, assigned_to, due_date, watchers_json, created_at`
 
 	if err := a.Store.WithTenantConn(ctx, tenantID, func(conn *pgxpool.Conn) error {
-		return conn.QueryRow(ctx, query, tenantID, req.ConversationID, req.Description, status, req.AssignedTo, dueDate, time.Now().UTC()).Scan(
-			&item.ID, &item.TenantID, &item.ConversationID, &item.Description, &item.Status, &item.AssignedTo, &item.DueDate, &item.CreatedAt,
+		return conn.QueryRow(ctx, query, tenantID, req.ConversationID, req.Description, status, req.AssignedTo, dueDate, watchersJSON, time.Now().UTC()).Scan(
+			&item.ID, &item.TenantID, &item.ConversationID, &item.Description, &item.Status, &item.AssignedTo, &item.DueDate, &item.WatchersJSON, &item.CreatedAt,
 		)
 	}); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to create action item")
@@ -75,6 +89,13 @@ func (a *API) CreateActionItem(w http.ResponseWriter, r *http.Request) {
 			"action_item_id":  item.ID,
 			"conversation_id": item.ConversationID,
 		})
+	}
+	a.logAudit(ctx, r, tenantID, authUserIDPtr(r), "action_item.create", stringPtr("action_item"), &item.ID, nil, map[string]any{
+		"conversation_id": item.ConversationID,
+		"status":          item.Status,
+	})
+	if item.AssignedTo != nil {
+		a.createNotification(ctx, tenantID, *item.AssignedTo, "action_item.assigned", "You have been assigned a new action item.")
 	}
 	if a.Hub != nil {
 		a.Hub.Broadcast(tenantID, map[string]any{
@@ -111,19 +132,31 @@ func (a *API) UpdateActionItem(w http.ResponseWriter, r *http.Request, actionIte
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
+	var watchersJSON *string
+	if req.Watchers != nil {
+		raw, err := json.Marshal(req.Watchers)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid watchers list")
+			return
+		}
+		value := string(raw)
+		watchersJSON = &value
+	}
+
 	var item models.ActionItem
 	query := `
 		UPDATE action_items
 		SET description=COALESCE($1, description),
 		    status=COALESCE($2, status),
 		    assigned_to=COALESCE($3, assigned_to),
-		    due_date=COALESCE($4, due_date)
-		WHERE id=$5 AND tenant_id=$6
-		RETURNING id, tenant_id, conversation_id, description, status, assigned_to, due_date, created_at`
+		    due_date=COALESCE($4, due_date),
+		    watchers_json=COALESCE($5, watchers_json)
+		WHERE id=$6 AND tenant_id=$7
+		RETURNING id, tenant_id, conversation_id, description, status, assigned_to, due_date, watchers_json, created_at`
 
 	if err := a.Store.WithTenantConn(ctx, tenantID, func(conn *pgxpool.Conn) error {
-		return conn.QueryRow(ctx, query, req.Description, req.Status, req.AssignedTo, dueDate, actionItemID, tenantID).Scan(
-			&item.ID, &item.TenantID, &item.ConversationID, &item.Description, &item.Status, &item.AssignedTo, &item.DueDate, &item.CreatedAt,
+		return conn.QueryRow(ctx, query, req.Description, req.Status, req.AssignedTo, dueDate, watchersJSON, actionItemID, tenantID).Scan(
+			&item.ID, &item.TenantID, &item.ConversationID, &item.Description, &item.Status, &item.AssignedTo, &item.DueDate, &item.WatchersJSON, &item.CreatedAt,
 		)
 	}); err != nil {
 		writeError(w, http.StatusNotFound, "action item not found")
@@ -135,6 +168,12 @@ func (a *API) UpdateActionItem(w http.ResponseWriter, r *http.Request, actionIte
 			"action_item_id":  item.ID,
 			"conversation_id": item.ConversationID,
 		})
+	}
+	a.logAudit(ctx, r, tenantID, authUserIDPtr(r), "action_item.update", stringPtr("action_item"), &item.ID, nil, map[string]any{
+		"status": item.Status,
+	})
+	if item.AssignedTo != nil {
+		a.createNotification(ctx, tenantID, *item.AssignedTo, "action_item.reassigned", "An action item has been assigned to you.")
 	}
 	if a.Hub != nil {
 		a.Hub.Broadcast(tenantID, map[string]any{
@@ -174,6 +213,7 @@ func (a *API) DeleteActionItem(w http.ResponseWriter, r *http.Request, actionIte
 			"action_item_id": actionItemID,
 		})
 	}
+	a.logAudit(ctx, r, tenantID, authUserIDPtr(r), "action_item.delete", stringPtr("action_item"), &actionItemID, nil, nil)
 	if a.Hub != nil {
 		a.Hub.Broadcast(tenantID, map[string]any{
 			"type": "action_item.delete",
@@ -195,7 +235,7 @@ func (a *API) ListActionItems(w http.ResponseWriter, r *http.Request) {
 	items := []models.ActionItem{}
 	if err := a.Store.WithTenantConn(ctx, tenantID, func(conn *pgxpool.Conn) error {
 		rows, err := conn.Query(ctx, `
-			SELECT id, tenant_id, conversation_id, description, status, assigned_to, due_date, created_at
+			SELECT id, tenant_id, conversation_id, description, status, assigned_to, due_date, watchers_json, created_at
 			FROM action_items
 			WHERE tenant_id=$1
 			ORDER BY created_at DESC
@@ -207,7 +247,7 @@ func (a *API) ListActionItems(w http.ResponseWriter, r *http.Request) {
 
 		for rows.Next() {
 			var item models.ActionItem
-			if err := rows.Scan(&item.ID, &item.TenantID, &item.ConversationID, &item.Description, &item.Status, &item.AssignedTo, &item.DueDate, &item.CreatedAt); err != nil {
+			if err := rows.Scan(&item.ID, &item.TenantID, &item.ConversationID, &item.Description, &item.Status, &item.AssignedTo, &item.DueDate, &item.WatchersJSON, &item.CreatedAt); err != nil {
 				return err
 			}
 			items = append(items, item)
