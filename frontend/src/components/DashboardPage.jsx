@@ -273,6 +273,9 @@ export default function DashboardPage() {
       <div className="halo" aria-hidden="true" />
       <header className="hero">
         <div>
+          <div className="brand">
+            <img src="/logo.svg" alt="MessageFlow logo" />
+          </div>
           <p className="eyebrow">MessageFlow</p>
           <h1>WhatsApp ops, in real-time.</h1>
           <p className="subtitle">

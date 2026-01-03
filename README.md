@@ -1,35 +1,65 @@
+<p align="center">
+  <img src="assets/logo.svg" alt="MessageFlow" width="520" />
+</p>
+
 # MessageFlow
 
-MessageFlow is a multi-tenant WhatsApp message management dashboard built with Go, React, and PostgreSQL. Phase 1 delivers the foundational dashboard, real-time updates, authentication, and operational tooling.
+MessageFlow is a multi-tenant WhatsApp operations platform built with Go, React, and PostgreSQL. It unifies real-time messaging, LLM-driven analysis, and team workflows into a single dashboard optimized for high-volume queues.
+
+## Highlights
+- Multi-tenant architecture with row-level security
+- Real-time dashboard updates via WebSocket
+- LLM provider abstraction with Claude, OpenAI, and Cohere
+- Usage, cost, and health monitoring per provider
+- Action items, summaries, and prioritization built for operations
+
+## WhatsApp Integration Disclaimer
+MessageFlow uses `whatsmeow` for WhatsApp connectivity. This is an unofficial library and is not endorsed by WhatsApp. Use at your own risk and ensure compliance with WhatsApp policies.
 
 ## Architecture
-- Go API (`backend`) with JWT authentication, rate limiting, CSRF protection, and row-level security.
-- React dashboard (`frontend`) with componentized UI, WebSocket updates, and theme toggle.
-- PostgreSQL with tenant-isolated schema.
+- Go API (`backend`) with JWT authentication, rate limiting, CSRF protection, and tenant isolation
+- React dashboard (`frontend`) with componentized UI, dark/light mode, and real-time streaming
+- PostgreSQL with RLS policies and LLM usage logs
+- Redis queue for batch analysis (optional)
 
-## WhatsApp Integration
-MessageFlow uses `whatsmeow` for WhatsApp connectivity. WhatsApp integration is powered by an unofficial library and is not endorsed by WhatsApp. Use at your own risk and ensure compliance with WhatsApp policies.
+## Tech Stack
+- Go 1.21+ (backend)
+- React + Vite (frontend)
+- PostgreSQL (data)
+- Redis (analysis queue)
+
+## Quick Start
+Backend:
+- `cd backend`
+- `export DATABASE_URL=...`
+- `export JWT_SECRET=...`
+- `export MASTER_KEY=...`
+- `go run ./cmd/server`
+
+Frontend:
+- `cd frontend`
+- `npm install`
+- `npm run dev`
 
 ## Environment
-Backend environment variables:
+Backend:
 - `DATABASE_URL` (required)
 - `JWT_SECRET` (required)
+- `MASTER_KEY` (required, encrypts provider API keys)
 - `PORT` (default: 8080)
 - `FRONTEND_ORIGIN` (default: http://localhost:5173)
-- `MASTER_KEY` (required for LLM provider encryption)
-- `REDIS_URL` (optional, enables batch analysis queue)
+- `REDIS_URL` (optional, enables batch queue)
 
-Frontend environment variables:
+Frontend:
 - `VITE_API_BASE` (default: http://localhost:8080/api/v1)
 - `VITE_WS_BASE` (default: ws://localhost:8080/api/v1)
 
-## Database
-Apply the migration:
+## Database Migrations
 - `backend/migrations/001_init.sql`
-
-Row-level security (RLS) policies use `app.tenant_id` per request. The API sets this value for every query.
+- `backend/migrations/002_phase2_llm.sql`
 
 ## API Endpoints
+Core:
 - `GET /api/v1/dashboard`
 - `GET /api/v1/conversations`
 - `GET /api/v1/conversations/:id/messages`
@@ -41,9 +71,13 @@ Row-level security (RLS) policies use `app.tenant_id` per request. The API sets 
 - `DELETE /api/v1/action-items/:id`
 - `GET /api/v1/action-items`
 - `GET /api/v1/daily-summary`
+
+Auth:
 - `POST /api/v1/auth/login`
 - `POST /api/v1/auth/register`
 - `GET /api/v1/auth/me`
+
+LLM:
 - `POST /api/v1/llm/providers`
 - `GET /api/v1/llm/providers`
 - `GET /api/v1/llm/providers/:id`
@@ -57,40 +91,33 @@ Row-level security (RLS) policies use `app.tenant_id` per request. The API sets 
 - `GET /api/v1/llm/costs`
 - `GET /api/v1/llm/health`
 
-Authentication:
-- Use `Authorization: Bearer <token>` on all `/api/v1/*` endpoints except login/register.
-- For state-changing requests, include `X-CSRF-Token` returned by login/register.
-
-## WebSocket
+WebSocket:
 - `GET /api/v1/ws?token=<jwt>`
-- Broadcasts events for replies, forwards, and action item changes.
 
-## Frontend
-The dashboard is composed of:
+## LLM Providers
+Supported providers and defaults:
+- Claude: `claude-3-opus-20240229`
+- OpenAI: `gpt-4-turbo`
+- Cohere: `command-r-plus`
+
+Each provider is configured per tenant with rate limits, temperature, token caps, and cost tracking.
+
+## Testing
+Backend tests:
+- `cd backend`
+- `go test ./...`
+
+## Security
+- JWT authentication on all `/api/v1/*` endpoints
+- CSRF protection on state-changing requests
+- Per-user rate limiting (60 req/min)
+- Prepared statements for all SQL access
+- RLS policies enforce tenant isolation
+
+## Frontend Components
 - `DashboardPage`
 - `DailySummaryCard`
 - `ImportantMessagesTab`
 - `ConversationsSidebar`
 - `MessagesList`
 - `ActionItemsTab`
-
-## Development
-Backend:
-- `cd backend`
-- `go run ./cmd/server`
-
-Frontend:
-- `cd frontend`
-- `npm install`
-- `npm run dev`
-
-## Testing
-- `cd backend`
-- `go test ./...`
-
-## Security Notes
-- JWT authentication with per-request tenant isolation
-- CSRF protection for state-changing operations
-- Rate limiting at 60 requests/minute per user
-- Prepared statements for all SQL queries
-- CORS restricted to `FRONTEND_ORIGIN`

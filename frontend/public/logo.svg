@@ -1,0 +1,8 @@
+<svg width="640" height="180" viewBox="0 0 640 180" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="640" height="180" rx="32" fill="#111111"/>
+  <path d="M64 44H210C246 44 274 72 274 108C274 144 246 172 210 172H64V44Z" fill="#E57B5F"/>
+  <path d="M92 76H138C157 76 172 91 172 110C172 129 157 144 138 144H92V76Z" fill="#111111"/>
+  <path d="M206 76H236C254 76 268 90 268 108C268 126 254 140 236 140H206V76Z" fill="#111111"/>
+  <text x="320" y="112" font-family="Space Grotesk, Arial, sans-serif" font-size="52" font-weight="600" fill="#F6EFE8" letter-spacing="2">MessageFlow</text>
+  <text x="320" y="146" font-family="Space Grotesk, Arial, sans-serif" font-size="18" fill="#B9AFA7" letter-spacing="1">WhatsApp operations, realtime intelligence</text>
+</svg>
