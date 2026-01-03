@@ -13,8 +13,8 @@ MessageFlow is a multi-tenant WhatsApp operations platform built with Go, React,
 - Usage, cost, and health monitoring per provider
 - Action items, summaries, and prioritization built for operations
 
-## WhatsApp Integration Disclaimer
-MessageFlow uses `whatsmeow` for WhatsApp connectivity. This is an unofficial library and is not endorsed by WhatsApp. Use at your own risk and ensure compliance with WhatsApp policies.
+> [!WARNING]
+> WhatsApp integration uses `whatsmeow`, an unofficial library not endorsed by WhatsApp. Use at your own risk and ensure compliance with WhatsApp policies.
 
 ## Architecture
 - Go API (`backend`) with JWT authentication, rate limiting, CSRF protection, and tenant isolation
@@ -57,6 +57,8 @@ Frontend:
 ## Database Migrations
 - `backend/migrations/001_init.sql`
 - `backend/migrations/002_phase2_llm.sql`
+- `backend/migrations/003_phase3_llm_management.sql`
+- `backend/migrations/004_phase3_llm_provider_fields.sql`
 
 ## API Endpoints
 Core:
@@ -80,7 +82,9 @@ Auth:
 LLM:
 - `POST /api/v1/llm/providers`
 - `GET /api/v1/llm/providers`
+- `GET /api/v1/llm/providers/comparison`
 - `GET /api/v1/llm/providers/:id`
+- `GET /api/v1/llm/providers/:id/history`
 - `PATCH /api/v1/llm/providers/:id`
 - `DELETE /api/v1/llm/providers/:id`
 - `POST /api/v1/llm/providers/:id/test`
@@ -90,6 +94,14 @@ LLM:
 - `GET /api/v1/llm/usage`
 - `GET /api/v1/llm/costs`
 - `GET /api/v1/llm/health`
+- `GET /api/v1/llm/features`
+- `POST /api/v1/llm/features/:name/assign-provider`
+- `GET /api/v1/llm/features/:name/providers`
+- `DELETE /api/v1/llm/features/:name/providers/:id`
+- `GET /api/v1/llm/analytics/cost-breakdown`
+- `GET /api/v1/llm/analytics/usage-by-feature`
+- `POST /api/v1/llm/bulk-test`
+- `GET /api/v1/llm/recommendations`
 
 WebSocket:
 - `GET /api/v1/ws?token=<jwt>`
@@ -106,6 +118,10 @@ Each provider is configured per tenant with rate limits, temperature, token caps
 Backend tests:
 - `cd backend`
 - `go test ./...`
+
+## Docker
+- `docker compose up --build`
+- Migrations run automatically on startup via the `migrate` service.
 
 ## Security
 - JWT authentication on all `/api/v1/*` endpoints
