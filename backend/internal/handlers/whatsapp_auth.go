@@ -32,15 +32,15 @@ func (a *API) StartWhatsAppAuth(w http.ResponseWriter, r *http.Request) {
 	}
 
 	tenantID := a.tenantID(r)
-	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
-	defer cancel()
 
-	session, err := a.WhatsApp.StartSession(ctx, tenantID)
+	// Use background context for WhatsApp session - it must persist beyond this HTTP request
+	session, err := a.WhatsApp.StartSession(context.Background(), tenantID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to start whatsapp session")
 		return
 	}
 
+	// Wait up to 8 seconds for QR code to be generated
 	deadline := time.Now().Add(8 * time.Second)
 	for session.LastQR == "" && time.Now().Before(deadline) {
 		time.Sleep(250 * time.Millisecond)
