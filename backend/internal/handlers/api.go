@@ -8,17 +8,23 @@ import (
 
 	"message-flow/backend/internal/auth"
 	"message-flow/backend/internal/db"
+	"message-flow/backend/internal/llm"
 	"message-flow/backend/internal/realtime"
 )
 
 type API struct {
-	Store *db.Store
-	Auth  *auth.Service
-	Hub   *realtime.Hub
+	Store           *db.Store
+	Auth            *auth.Service
+	Hub             *realtime.Hub
+	LLM             *llm.Service
+	LLMStore        *llm.Store
+	Queue           *llm.Queue
+	HealthScheduler *llm.HealthScheduler
+	WorkerScheduler *llm.WorkerScheduler
 }
 
-func NewAPI(store *db.Store, authService *auth.Service, hub *realtime.Hub) *API {
-	return &API{Store: store, Auth: authService, Hub: hub}
+func NewAPI(store *db.Store, authService *auth.Service, hub *realtime.Hub, llmService *llm.Service, llmStore *llm.Store, queue *llm.Queue, scheduler *llm.HealthScheduler, workerScheduler *llm.WorkerScheduler) *API {
+	return &API{Store: store, Auth: authService, Hub: hub, LLM: llmService, LLMStore: llmStore, Queue: queue, HealthScheduler: scheduler, WorkerScheduler: workerScheduler}
 }
 
 func (a *API) tenantID(r *http.Request) int64 {

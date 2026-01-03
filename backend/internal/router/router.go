@@ -111,6 +111,16 @@ func (rt *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			rt.api.ForwardMessage(w, r)
 			return
 		}
+	case path == "/api/v1/messages/analyze":
+		if r.Method == http.MethodPost {
+			rt.api.AnalyzeMessage(w, r)
+			return
+		}
+	case path == "/api/v1/messages/batch-analyze":
+		if r.Method == http.MethodPost {
+			rt.api.BatchAnalyze(w, r)
+			return
+		}
 	case path == "/api/v1/important-messages":
 		if r.Method == http.MethodGet {
 			rt.api.ListImportantMessages(w, r)
@@ -140,6 +150,59 @@ func (rt *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case path == "/api/v1/daily-summary":
 		if r.Method == http.MethodGet {
 			rt.api.GetDailySummary(w, r)
+			return
+		}
+	case path == "/api/v1/conversations/summarize":
+		if r.Method == http.MethodPost {
+			rt.api.SummarizeConversation(w, r)
+			return
+		}
+	case path == "/api/v1/llm/providers":
+		switch r.Method {
+		case http.MethodPost:
+			rt.api.CreateProvider(w, r)
+			return
+		case http.MethodGet:
+			rt.api.ListProviders(w, r)
+			return
+		}
+	case strings.HasPrefix(path, "/api/v1/llm/providers/"):
+		segments := strings.Split(strings.TrimPrefix(path, "/api/v1/llm/providers/"), "/")
+		if len(segments) >= 1 {
+			if id, ok := handlers.ParseID(segments[0]); ok {
+				if len(segments) == 2 && segments[1] == "test" {
+					if r.Method == http.MethodPost {
+						rt.api.TestProvider(w, r, id)
+						return
+					}
+				} else {
+					switch r.Method {
+					case http.MethodGet:
+						rt.api.GetProvider(w, r, id)
+						return
+					case http.MethodPatch:
+						rt.api.UpdateProvider(w, r, id)
+						return
+					case http.MethodDelete:
+						rt.api.DeleteProvider(w, r, id)
+						return
+					}
+				}
+			}
+		}
+	case path == "/api/v1/llm/usage":
+		if r.Method == http.MethodGet {
+			rt.api.GetUsageStats(w, r)
+			return
+		}
+	case path == "/api/v1/llm/costs":
+		if r.Method == http.MethodGet {
+			rt.api.GetCosts(w, r)
+			return
+		}
+	case path == "/api/v1/llm/health":
+		if r.Method == http.MethodGet {
+			rt.api.GetHealthStatus(w, r)
 			return
 		}
 	case path == "/api/v1/auth/login":

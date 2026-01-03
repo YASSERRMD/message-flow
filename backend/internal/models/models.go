@@ -69,6 +69,54 @@ type UserActivityLog struct {
 	CreatedAt   time.Time `json:"created_at"`
 }
 
+type LLMProvider struct {
+	ID                   int64      `json:"id"`
+	TenantID             int64      `json:"tenant_id"`
+	ProviderName         string     `json:"provider_name"`
+	APIKey               string     `json:"api_key"`
+	ModelName            string     `json:"model_name"`
+	Temperature          float64    `json:"temperature"`
+	MaxTokens            int        `json:"max_tokens"`
+	CostPer1KInput       float64    `json:"cost_per_1k_input"`
+	CostPer1KOutput      float64    `json:"cost_per_1k_output"`
+	MaxRequestsPerMinute int        `json:"max_requests_per_minute"`
+	IsActive             bool       `json:"is_active"`
+	IsDefault            bool       `json:"is_default"`
+	HealthStatus         string     `json:"health_status"`
+	LastHealthCheck      *time.Time `json:"last_health_check"`
+	CreatedAt            time.Time  `json:"created_at"`
+}
+
+type LLMUsageLog struct {
+	ID             int64     `json:"id"`
+	TenantID       int64     `json:"tenant_id"`
+	ProviderID     int64     `json:"provider_id"`
+	MessageID      *int64    `json:"message_id"`
+	InputTokens    int       `json:"input_tokens"`
+	OutputTokens   int       `json:"output_tokens"`
+	TotalTokens    int       `json:"total_tokens"`
+	InputCost      float64   `json:"input_cost"`
+	OutputCost     float64   `json:"output_cost"`
+	TotalCost      float64   `json:"total_cost"`
+	ResponseTimeMs int64     `json:"response_time_ms"`
+	Success        bool      `json:"success"`
+	ErrorMessage   *string   `json:"error_message"`
+	FeatureUsed    string    `json:"feature_used"`
+	CreatedAt      time.Time `json:"created_at"`
+}
+
+type LLMProviderHealth struct {
+	ID             int64     `json:"id"`
+	ProviderID     int64     `json:"provider_id"`
+	TenantID       int64     `json:"tenant_id"`
+	CheckTime      time.Time `json:"check_time"`
+	Status         string    `json:"status"`
+	LatencyMs      int64     `json:"latency_ms"`
+	ErrorMessage   *string   `json:"error_message"`
+	HTTPStatusCode *int      `json:"http_status_code"`
+	CreatedAt      time.Time `json:"created_at"`
+}
+
 type DashboardSummary struct {
 	TotalConversations int64 `json:"total_conversations"`
 	TotalMessages      int64 `json:"total_messages"`

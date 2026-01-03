@@ -13,6 +13,7 @@ import (
 	"message-flow/backend/internal/config"
 	"message-flow/backend/internal/db"
 	"message-flow/backend/internal/handlers"
+	"message-flow/backend/internal/llm"
 	"message-flow/backend/internal/middleware"
 	"message-flow/backend/internal/realtime"
 	"message-flow/backend/internal/router"
@@ -35,7 +36,27 @@ func main() {
 		log.Fatalf("failed to init auth: %v", err)
 	}
 	hub := realtime.NewHub()
-	api := handlers.NewAPI(store, authService, hub)
+	var llmQueue *llm.Queue
+	if cfg.RedisURL != "" {
+		queue, err := llm.NewQueue(cfg.RedisURL)
+		if err != nil {
+			log.Printf("failed to init redis queue: %v", err)
+		} else {
+			llmQueue = queue
+		}
+	}
+	llmStore := llm.NewStore(store, cfg.MasterKey)
+	llmFactory := llm.NewFactory()
+	llmRouter := llm.NewRouter(llmFactory, llmStore)
+	llmService := llm.NewService(llmRouter, llmStore)
+	healthMonitor := &llm.HealthMonitor{Router: llmRouter, Store: llmStore}
+	healthScheduler := llm.NewHealthScheduler(healthMonitor, llmStore)
+	var workerScheduler *llm.WorkerScheduler
+	if llmQueue != nil {
+		workerScheduler = llm.NewWorkerScheduler(llmQueue, llmService, store, hub)
+	}
+
+	api := handlers.NewAPI(store, authService, hub, llmService, llmStore, llmQueue, healthScheduler, workerScheduler)
 	limiter := middleware.NewRateLimiter(60, time.Minute)
 	rt := router.New(api, authService, limiter, cfg.FrontendOrigin, hub)
 
