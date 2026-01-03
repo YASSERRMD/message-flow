@@ -54,10 +54,23 @@ export default function DashboardPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [status, setStatus] = useState("idle");
   const [authStatus, setAuthStatus] = useState("signed-out");
+  const [qrSession, setQrSession] = useState("");
+  const [qrImage, setQrImage] = useState("");
+  const [qrTimeout, setQrTimeout] = useState(0);
+  const [qrStatus, setQrStatus] = useState("idle");
+  const [qrError, setQrError] = useState("");
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
   }, [theme]);
+
+  useEffect(() => {
+    if (token) {
+      setAuthStatus("signed-in");
+    } else {
+      setAuthStatus("signed-out");
+    }
+  }, [token]);
 
   const headers = useMemo(() => {
     const base = {
@@ -178,31 +191,58 @@ export default function DashboardPage() {
     });
   }, [conversations, searchTerm]);
 
-  const handleLogin = async ({ email, password, tenant }) => {
-    const res = await fetch(`${API_BASE}/auth/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password, tenant_id: Number(tenant) })
-    });
-    if (!res.ok) return;
+  const startWhatsAppConnect = useCallback(async () => {
+    setQrStatus("loading");
+    setQrError("");
+    const res = await fetch(`${API_BASE}/auth/whatsapp/qr`, { method: "GET" });
+    if (!res.ok) {
+      setQrStatus("error");
+      setQrError("Failed to generate QR code");
+      return;
+    }
     const data = await res.json();
-    setToken(data.token || "");
-    setCsrf(data.csrf || "");
-    setTenantId(Number(tenant));
-  };
+    setQrSession(data.session_id || "");
+    setQrImage(data.qr_code || "");
+    setQrTimeout(data.timeout_seconds || 0);
+    setQrStatus(data.status || "pending");
+  }, []);
 
-  const handleRegister = async ({ email, password, tenant }) => {
-    const res = await fetch(`${API_BASE}/auth/register`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password, tenant_id: Number(tenant) })
+  const pollWhatsAppStatus = useCallback(async () => {
+    if (!qrSession) return;
+    const res = await fetch(`${API_BASE}/auth/whatsapp/status?session_id=${encodeURIComponent(qrSession)}`, {
+      method: "GET"
     });
-    if (!res.ok) return;
+    if (!res.ok) {
+      setQrStatus("error");
+      setQrError("Unable to check status");
+      return;
+    }
     const data = await res.json();
-    setToken(data.token || "");
-    setCsrf(data.csrf || "");
-    setTenantId(Number(tenant));
-  };
+    if (data.status === "connected" && data.token) {
+      setToken(data.token || "");
+      setCsrf(data.csrf || "");
+      setTenantId(Number(data.tenant_id || tenantId));
+      setAuthStatus("signed-in");
+      setQrStatus("connected");
+      setQrError("");
+      return;
+    }
+    if (data.qr_code) {
+      setQrImage(data.qr_code);
+    }
+    setQrStatus(data.status || "pending");
+    if (data.error) {
+      setQrError(data.error);
+    }
+  }, [qrSession, tenantId, setToken, setCsrf, setTenantId]);
+
+  useEffect(() => {
+    if (!qrSession || authStatus === "signed-in") return;
+    const timer = setInterval(() => {
+      pollWhatsAppStatus();
+    }, 3000);
+    return () => clearInterval(timer);
+  }, [qrSession, pollWhatsAppStatus, authStatus]);
 
   const handleReply = async ({ conversationId, content }) => {
     const res = await fetch(`${API_BASE}/messages/reply`, {
@@ -305,16 +345,53 @@ export default function DashboardPage() {
         ))}
       </section>
 
-      <section className="auth-panel">
-        <div>
-          <h3>Access</h3>
-          <p>{authStatus === "signed-in" ? "Authenticated" : "Sign in or register"}</p>
-        </div>
-        <div className="auth-actions">
-          <AuthForm label="Login" onSubmit={handleLogin} />
-          <AuthForm label="Register" onSubmit={handleRegister} />
-        </div>
-      </section>
+      {authStatus === "signed-in" ? (
+        <section className="connect-panel connect-panel--signed">
+          <div>
+            <h3>WhatsApp Connected</h3>
+            <p>Real-time sync is active for this workspace.</p>
+          </div>
+          <div className="connect-card compact">
+            <p className="status-pill">Connected</p>
+            <button className="ghost-button" type="button" onClick={startWhatsAppConnect}>
+              Refresh QR
+            </button>
+          </div>
+        </section>
+      ) : (
+        <section className="connect-panel">
+          <div className="connect-copy">
+            <h3>Connect WhatsApp</h3>
+            <p>Scan the QR code to link your WhatsApp Business account and create your workspace automatically.</p>
+            <ul className="connect-steps">
+              <li>Open WhatsApp → Linked devices</li>
+              <li>Tap “Link a device” and scan</li>
+              <li>Stay online while we sync</li>
+            </ul>
+          </div>
+          <div className="connect-card">
+            <div className="qr-frame">
+              {qrImage ? (
+                <img src={qrImage} alt="WhatsApp QR code" />
+              ) : (
+                <div className="qr-placeholder">
+                  <span>Generate QR to connect</span>
+                </div>
+              )}
+            </div>
+            <div className="connect-actions">
+              <button className="primary" type="button" onClick={startWhatsAppConnect}>
+                {qrStatus === "loading" ? "Generating…" : "Generate QR"}
+              </button>
+              <span className="connect-meta">
+                {qrTimeout ? `Refreshes in ${qrTimeout}s` : "Secure pairing session"}
+              </span>
+            </div>
+            {qrError && <p className="error-text">{qrError}</p>}
+            <p className="connect-status">Status: {qrStatus}</p>
+          </div>
+        </section>
+      )}
 
       <section className="dashboard">
         <ConversationsSidebar
@@ -353,45 +430,5 @@ export default function DashboardPage() {
         <span>Status: {status}</span>
       </footer>
     </div>
-  );
-}
-
-function AuthForm({ label, onSubmit }) {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [tenant, setTenant] = useState(1);
-
-  const handleSubmit = (event) => {
-    event.preventDefault();
-    onSubmit({ email, password, tenant });
-  };
-
-  return (
-    <form className="auth-form" onSubmit={handleSubmit}>
-      <h4>{label}</h4>
-      <input
-        type="email"
-        placeholder="Email"
-        value={email}
-        onChange={(event) => setEmail(event.target.value)}
-        required
-      />
-      <input
-        type="password"
-        placeholder="Password"
-        value={password}
-        onChange={(event) => setPassword(event.target.value)}
-        required
-      />
-      <input
-        type="number"
-        min="1"
-        placeholder="Tenant ID"
-        value={tenant}
-        onChange={(event) => setTenant(event.target.value)}
-        required
-      />
-      <button type="submit">{label}</button>
-    </form>
   );
 }
