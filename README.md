@@ -11,6 +11,7 @@ MessageFlow is a multi-tenant WhatsApp operations platform built with Go, React,
 - Real-time dashboard updates via WebSocket
 - LLM provider abstraction with Claude, OpenAI, and Cohere
 - Usage, cost, and health monitoring per provider
+- Team collaboration with RBAC, workflows, and integrations
 - Action items, summaries, and prioritization built for operations
 
 > [!WARNING]
@@ -27,6 +28,7 @@ MessageFlow is a multi-tenant WhatsApp operations platform built with Go, React,
 - React + Vite (frontend)
 - PostgreSQL (data)
 - Redis (analysis queue)
+- Slack, Email, Webhooks (integrations)
 
 ## Quick Start
 Backend:
@@ -59,6 +61,7 @@ Frontend:
 - `backend/migrations/002_phase2_llm.sql`
 - `backend/migrations/003_phase3_llm_management.sql`
 - `backend/migrations/004_phase3_llm_provider_fields.sql`
+- `backend/migrations/005_phase4_team_collaboration.sql`
 
 ## API Endpoints
 Core:
@@ -103,6 +106,41 @@ LLM:
 - `POST /api/v1/llm/bulk-test`
 - `GET /api/v1/llm/recommendations`
 
+Team:
+- `POST /api/v1/team/users`
+- `GET /api/v1/team/users`
+- `PATCH /api/v1/team/users/:id/role`
+- `DELETE /api/v1/team/users/:id`
+- `POST /api/v1/team/invitations`
+- `GET /api/v1/team/activity`
+
+Workflows:
+- `POST /api/v1/workflows`
+- `GET /api/v1/workflows`
+- `PATCH /api/v1/workflows/:id`
+- `DELETE /api/v1/workflows/:id`
+- `POST /api/v1/workflows/:id/test`
+- `GET /api/v1/workflows/:id/executions`
+
+Integrations:
+- `POST /api/v1/integrations/:type`
+- `GET /api/v1/integrations`
+- `DELETE /api/v1/integrations/:id`
+- `GET /api/v1/integrations/:id/config`
+- `POST /api/v1/webhooks/incoming`
+
+Audit + Notifications:
+- `POST /api/v1/audit-logs`
+- `POST /api/v1/notifications`
+- `PATCH /api/v1/notifications/:id`
+
+Labels + Comments:
+- `POST /api/v1/labels`
+- `POST /api/v1/messages/:id/labels`
+- `GET /api/v1/action-items/:id/comments`
+- `POST /api/v1/action-items/:id/comments`
+- `DELETE /api/v1/comments/:id`
+
 WebSocket:
 - `GET /api/v1/ws?token=<jwt>`
 
@@ -129,6 +167,7 @@ Backend tests:
 - Per-user rate limiting (60 req/min)
 - Prepared statements for all SQL access
 - RLS policies enforce tenant isolation
+- RBAC enforcement with audited permission checks
 
 ## Frontend Components
 - `DashboardPage`
@@ -137,3 +176,13 @@ Backend tests:
 - `ConversationsSidebar`
 - `MessagesList`
 - `ActionItemsTab`
+- `TeamManagementPage`
+- `WorkflowBuilder`
+- `WorkflowListPage`
+- `IntegrationSettingsPage`
+- `AuditLogPage`
+- `AnalyticsPage`
+- `NotificationCenter`
+- `CommentThread`
+- `ActivityTimeline`
+- `KanbanBoard`
