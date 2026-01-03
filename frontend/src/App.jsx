@@ -1,12 +1,33 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import DashboardPage from "./components/DashboardPage.jsx";
 import LLMProviderDashboard from "./components/llm/LLMProviderDashboard.jsx";
 import ErrorBoundary from "./components/llm/ErrorBoundary.jsx";
+import CollaborationPage from "./components/CollaborationPage.jsx";
+
+const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8080/api/v1";
 
 export default function App() {
   const [view, setView] = useState("operations");
+  const [role, setRole] = useState("viewer");
   const token = localStorage.getItem("mf-token") || "";
   const csrf = localStorage.getItem("mf-csrf") || "";
+
+  useEffect(() => {
+    if (!token) return;
+    fetch(`${API_BASE}/auth/me`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "X-CSRF-Token": csrf
+      }
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.role) {
+          setRole(data.role);
+        }
+      })
+      .catch(() => {});
+  }, [token, csrf]);
 
   return (
     <div>
@@ -22,6 +43,12 @@ export default function App() {
             Operations
           </button>
           <button
+            className={view === "collab" ? "primary" : "ghost"}
+            onClick={() => setView("collab")}
+          >
+            Team Hub
+          </button>
+          <button
             className={view === "llm" ? "primary" : "ghost"}
             onClick={() => setView("llm")}
           >
@@ -29,9 +56,11 @@ export default function App() {
           </button>
         </div>
       </nav>
-      {view === "operations" ? (
-        <DashboardPage />
-      ) : (
+      {view === "operations" && <DashboardPage />}
+      {view === "collab" && (
+        <CollaborationPage token={token} csrf={csrf} role={role} />
+      )}
+      {view === "llm" && (
         <ErrorBoundary>
           <LLMProviderDashboard token={token} csrf={csrf} />
         </ErrorBoundary>

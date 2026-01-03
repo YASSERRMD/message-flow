@@ -879,6 +879,13 @@ h1 {
   gap: 12px;
 }
 
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
 .inline-input {
   display: flex;
   gap: 8px;
@@ -908,4 +915,224 @@ h1 {
     flex-direction: column;
     gap: 12px;
   }
+}
+
+.collab-layout {
+  display: grid;
+  gap: 24px;
+  padding: 24px;
+}
+
+.collab-card {
+  background: var(--surface);
+  border: 1px solid var(--bg-accent);
+  border-radius: 18px;
+  padding: 20px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+}
+
+.collab-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.collab-header h2 {
+  margin: 0 0 6px;
+}
+
+.collab-header p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.tag {
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--surface-alt);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.collab-form {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  margin-bottom: 16px;
+}
+
+.collab-form.vertical {
+  grid-template-columns: 1fr;
+}
+
+.collab-form input,
+.collab-form select,
+.collab-form textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--bg-accent);
+  background: #fff;
+}
+
+.collab-list {
+  display: grid;
+  gap: 10px;
+}
+
+.collab-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--surface-alt);
+  border-radius: 14px;
+  align-items: center;
+}
+
+.collab-row p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.collab-row-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.collab-row-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.collab-subsection {
+  margin-top: 16px;
+}
+
+.pill-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.pill-tabs button {
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--bg-accent);
+  background: transparent;
+  cursor: pointer;
+}
+
+.pill-tabs button.active {
+  background: var(--primary);
+  color: #fff;
+}
+
+.stat-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.stat-card {
+  padding: 16px;
+  background: var(--surface-alt);
+  border-radius: 16px;
+}
+
+.stat-card strong {
+  display: block;
+  font-size: 22px;
+  margin-top: 6px;
+}
+
+.timeline {
+  display: grid;
+  gap: 12px;
+}
+
+.timeline-row {
+  display: grid;
+  grid-template-columns: 12px 1fr;
+  gap: 10px;
+  align-items: start;
+}
+
+.timeline-dot {
+  width: 10px;
+  height: 10px;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: var(--primary);
+}
+
+.kanban {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.kanban-column {
+  background: var(--surface-alt);
+  padding: 12px;
+  border-radius: 16px;
+  display: grid;
+  gap: 12px;
+}
+
+.kanban-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+  border: 1px solid var(--bg-accent);
+}
+
+.kanban-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.comment-thread {
+  display: grid;
+  gap: 8px;
+}
+
+.comment-list {
+  display: grid;
+  gap: 8px;
+}
+
+.comment {
+  background: var(--surface-alt);
+  padding: 8px;
+  border-radius: 10px;
+}
+
+.comment span {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.comment-form {
+  display: flex;
+  gap: 8px;
+}
+
+.comment-form input {
+  flex: 1;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--bg-accent);
 }
