@@ -34,7 +34,7 @@ export default function App() {
     <div>
       <nav className="app-nav">
         <div className="nav-brand">
-          <img src="/logo.svg" alt="MessageFlow logo" />
+          <img src="/logo.png" alt="MessageFlow logo" />
         </div>
         <div className="nav-actions">
           <button
