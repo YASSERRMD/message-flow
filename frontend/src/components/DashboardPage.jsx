@@ -197,32 +197,43 @@ export default function DashboardPage() {
 
   const pollWhatsAppStatus = useCallback(async () => {
     if (!qrSession) return;
-    const res = await fetch(`${API_BASE}/auth/whatsapp/status?session_id=${encodeURIComponent(qrSession)}`, {
-      method: "GET"
-    });
-    if (!res.ok) {
-      setQrStatus("error");
-      setQrError("Unable to check status");
-      return;
-    }
-    const data = await res.json();
-    if (data.status === "connected" && data.token) {
-      setToken(data.token || "");
-      setCsrf(data.csrf || "");
-      setTenantId(Number(data.tenant_id || tenantId));
-      setAuthStatus("signed-in");
-      setQrStatus("connected");
-      setQrError("");
-      setQrImage(""); // Clear QR image after successful connection
-      loadDashboard(); // Reload dashboard data
-      return;
-    }
-    if (data.qr_code) {
-      setQrImage(data.qr_code);
-    }
-    setQrStatus(data.status || "pending");
-    if (data.error) {
-      setQrError(data.error);
+    try {
+      const res = await fetch(`${API_BASE}/auth/whatsapp/status?session_id=${encodeURIComponent(qrSession)}`, {
+        method: "GET"
+      });
+      if (res.status === 404) {
+        // Session expired or not found - stop polling
+        setQrSession("");
+        setQrImage("");
+        setQrStatus("idle");
+        return;
+      }
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        setQrError(errData.error || "Connection error");
+        return;
+      }
+      const data = await res.json();
+      if (data.status === "connected" && data.token) {
+        setToken(data.token || "");
+        setCsrf(data.csrf || "");
+        setTenantId(Number(data.tenant_id || tenantId));
+        setAuthStatus("signed-in");
+        setQrStatus("connected");
+        setQrError("");
+        setQrImage(""); // Clear QR image after successful connection
+        loadDashboard(); // Reload dashboard data
+        return;
+      }
+      if (data.qr_code) {
+        setQrImage(data.qr_code);
+      }
+      setQrStatus(data.status || "pending");
+      if (data.error) {
+        setQrError(data.error);
+      }
+    } catch (err) {
+      setQrError("Network error - retrying...");
     }
   }, [qrSession, tenantId, setToken, setCsrf, setTenantId, loadDashboard]);
 

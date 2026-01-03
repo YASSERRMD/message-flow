@@ -35,7 +35,8 @@ func (s *Store) WithTenantConn(ctx context.Context, tenantID int64, fn func(*pgx
 	}
 	defer conn.Release()
 
-	if _, err := conn.Exec(ctx, "SET app.tenant_id = $1", tenantID); err != nil {
+	// SET command doesn't support parameters ($1), so we format the string
+	if _, err := conn.Exec(ctx, fmt.Sprintf("SET app.tenant_id = '%d'", tenantID)); err != nil {
 		return err
 	}
 	defer func() {

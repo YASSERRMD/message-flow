@@ -58,19 +58,25 @@ func (s *Syncer) handleHistorySync(ctx context.Context, tenantID int64, client *
 	if evt == nil || evt.Data == nil || client == nil {
 		return
 	}
-	for _, conv := range evt.Data.GetConversations() {
+	conversations := evt.Data.GetConversations()
+	log.Printf("[Syncer] Processing history sync for %d conversations", len(conversations))
+	for _, conv := range conversations {
 		chatJID, err := types.ParseJID(conv.GetID())
 		if err != nil {
 			continue
 		}
 		contactName := strings.TrimSpace(conv.GetName())
-		for _, historyMsg := range conv.GetMessages() {
+		messages := conv.GetMessages()
+		log.Printf("[Syncer] Processing %d messages for conversation %s", len(messages), chatJID.String())
+
+		for _, historyMsg := range messages {
 			webMsg := historyMsg.GetMessage()
 			if webMsg == nil {
 				continue
 			}
 			msgEvt, err := client.ParseWebMessage(chatJID, webMsg)
 			if err != nil {
+				log.Printf("[Syncer] Failed to parse message: %v", err)
 				continue
 			}
 			s.handleMessage(ctx, tenantID, client, msgEvt.Info, msgEvt.Message, chatJID, contactName)
@@ -80,6 +86,7 @@ func (s *Syncer) handleHistorySync(ctx context.Context, tenantID int64, client *
 
 func (s *Syncer) handleMessage(ctx context.Context, tenantID int64, client *whatsmeow.Client, info types.MessageInfo, msg *waE2E.Message, chatJID types.JID, contactName string) {
 	if s == nil || s.Store == nil {
+		log.Printf("[Syncer] handleMessage: nil store")
 		return
 	}
 	content := extractText(msg)
@@ -96,7 +103,12 @@ func (s *Syncer) handleMessage(ctx context.Context, tenantID int64, client *what
 	}
 
 	conversationID, err := s.upsertConversation(ctx, tenantID, contactNumber, contactName, info.Timestamp)
-	if err != nil || conversationID == 0 {
+	if err != nil {
+		log.Printf("[Syncer] upsertConversation error: %v", err)
+		return
+	}
+	if conversationID == 0 {
+		log.Printf("[Syncer] upsertConversation returned 0 ID")
 		return
 	}
 
