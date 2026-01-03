@@ -10,6 +10,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/store/sqlstore"
+	waLog "go.mau.fi/whatsmeow/util/log"
 )
 
 type Session struct {
@@ -29,19 +30,22 @@ type Manager struct {
 	container *sqlstore.Container
 	sessions  map[string]*Session
 	syncer    *Syncer
+	log       waLog.Logger
 }
 
 func NewManager(ctx context.Context, databaseURL string) (*Manager, error) {
 	if databaseURL == "" {
 		return nil, errors.New("database url required")
 	}
-	container, err := sqlstore.New(ctx, "pgx", databaseURL, nil)
+	log := waLog.Stdout("WhatsApp", "DEBUG", true)
+	container, err := sqlstore.New(ctx, "pgx", databaseURL, log)
 	if err != nil {
 		return nil, err
 	}
 	return &Manager{
 		container: container,
 		sessions:  map[string]*Session{},
+		log:       log,
 	}, nil
 }
 
@@ -52,18 +56,17 @@ func (m *Manager) SetSyncer(syncer *Syncer) {
 }
 
 func (m *Manager) StartSession(ctx context.Context, tenantID int64) (*Session, error) {
-	device := m.container.NewDevice()
-	client := whatsmeow.NewClient(device, nil)
-	if m.syncer != nil {
-		m.syncer.Attach(tenantID, client)
-	}
-
-	qrChan, err := client.GetQRChannel(ctx)
+	// Try to get an existing device first
+	device, err := m.container.GetFirstDevice(ctx)
 	if err != nil {
 		return nil, err
 	}
-	if err := client.Connect(); err != nil {
-		return nil, err
+
+	clientLog := waLog.Stdout("Client", "DEBUG", true)
+	client := whatsmeow.NewClient(device, clientLog)
+
+	if m.syncer != nil {
+		m.syncer.Attach(tenantID, client)
 	}
 
 	session := &Session{
@@ -75,11 +78,35 @@ func (m *Manager) StartSession(ctx context.Context, tenantID int64) (*Session, e
 		UpdatedAt: time.Now().UTC(),
 	}
 
+	// Check if already logged in
+	if client.Store.ID != nil {
+		// Already logged in, just connect
+		if err := client.Connect(); err != nil {
+			return nil, err
+		}
+		session.Status = "connected"
+		m.mu.Lock()
+		m.sessions[session.ID] = session
+		m.mu.Unlock()
+		return session, nil
+	}
+
+	// Not logged in, need QR pairing
+	qrChan, err := client.GetQRChannel(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := client.Connect(); err != nil {
+		return nil, err
+	}
+
 	m.mu.Lock()
 	m.sessions[session.ID] = session
 	m.mu.Unlock()
 
-	go m.consumeQR(session, qrChan)
+	// Start consuming QR events in background
+	go m.consumeQR(session, qrChan, client)
 
 	return session, nil
 }
@@ -95,7 +122,7 @@ func (m *Manager) GetSession(sessionID string) (*Session, bool) {
 	return &copy, true
 }
 
-func (m *Manager) consumeQR(session *Session, qrChan <-chan whatsmeow.QRChannelItem) {
+func (m *Manager) consumeQR(session *Session, qrChan <-chan whatsmeow.QRChannelItem, client *whatsmeow.Client) {
 	for item := range qrChan {
 		m.mu.Lock()
 		session.UpdatedAt = time.Now().UTC()
@@ -105,18 +132,31 @@ func (m *Manager) consumeQR(session *Session, qrChan <-chan whatsmeow.QRChannelI
 			session.Status = "pending"
 			session.LastQR = item.Code
 			session.LastExpiry = item.Timeout
+			m.log.Debugf("QR code received, timeout: %v", item.Timeout)
 		case "success":
 			session.Status = "connected"
+			m.log.Infof("WhatsApp pairing successful!")
 		case "timeout":
 			session.Status = "timeout"
+			m.log.Warnf("QR code timed out")
 		case "error":
 			session.Status = "error"
 			if item.Error != nil {
 				session.Error = item.Error.Error()
+				m.log.Errorf("QR error: %v", item.Error)
 			}
 		default:
 			session.Status = item.Event
+			m.log.Debugf("Unknown QR event: %s", item.Event)
 		}
 		m.mu.Unlock()
 	}
+
+	// QR channel closed - check final connection status
+	m.mu.Lock()
+	if client.Store.ID != nil {
+		session.Status = "connected"
+		m.log.Infof("Connection established, JID: %s", client.Store.ID.String())
+	}
+	m.mu.Unlock()
 }
