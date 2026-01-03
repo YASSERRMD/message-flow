@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
-const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8080/api/v1";
+const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8081/api/v1";
 
 const defaultConfigs = {
   slack: { slack_workspace_id: "", slack_token: "" },

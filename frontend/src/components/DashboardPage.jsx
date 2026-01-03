@@ -5,7 +5,7 @@ import DailySummaryCard from "./DailySummaryCard.jsx";
 import ImportantMessagesTab from "./ImportantMessagesTab.jsx";
 import MessagesList from "./MessagesList.jsx";
 
-const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8080/api/v1";
+const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8081/api/v1";
 const WS_BASE = import.meta.env.VITE_WS_BASE || API_BASE.replace("http", "ws");
 
 const defaultSummary = {
@@ -312,28 +312,37 @@ export default function DashboardPage() {
     <div className="app">
       <div className="halo" aria-hidden="true" />
       <header className="hero">
-        <div>
-          <div className="brand">
-            <img src="/logo.svg" alt="MessageFlow logo" />
+        <div className="hero-copy">
+          <div className="brand-lockup text-only">
+            <div>
+              <p className="brand-name">MessageFlow</p>
+              <p className="brand-sub">WhatsApp operations, realtime intel</p>
+            </div>
           </div>
-          <p className="eyebrow">MessageFlow</p>
           <h1>WhatsApp ops, in real-time.</h1>
           <p className="subtitle">
             Multi-tenant command center for fast replies, high-priority signals, and
-            actionable follow-ups.
+            actionable follow-ups built for modern operations teams.
           </p>
+          <div className="hero-badges">
+            <span className="status-pill">{authStatus === "signed-in" ? "Connected" : "Not connected"}</span>
+            <span className="status-chip">WebSocket live</span>
+          </div>
         </div>
-        <div className="status-card">
+        <aside className="workspace-card">
           <p className="status-label">Workspace</p>
-          <p className="status-meta">Tenant {tenantId}</p>
+          <p className="status-title">Tenant {tenantId}</p>
           <p className="status-meta">{user ? user.email : "Not signed in"}</p>
           <div className="status-actions">
-            <button type="button" onClick={() => setTheme(theme === "light" ? "dark" : "light")}
-              className="ghost-button">
+            <button
+              type="button"
+              onClick={() => setTheme(theme === "light" ? "dark" : "light")}
+              className="ghost-button"
+            >
               {theme === "light" ? "Dark" : "Light"} mode
             </button>
           </div>
-        </div>
+        </aside>
       </header>
 
       <section className="stats-grid">

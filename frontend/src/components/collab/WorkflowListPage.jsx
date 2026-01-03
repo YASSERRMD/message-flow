@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import WorkflowBuilder from "./WorkflowBuilder.jsx";
 
-const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8080/api/v1";
+const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8081/api/v1";
 
 export default function WorkflowListPage({ token, csrf }) {
   const [workflows, setWorkflows] = useState([]);

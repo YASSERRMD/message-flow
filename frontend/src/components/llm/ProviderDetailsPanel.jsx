@@ -29,7 +29,7 @@ export default function ProviderDetailsPanel({ provider, onClose, onUpdate, head
 
   useEffect(() => {
     if (!provider || !headers) return;
-    fetch(`${import.meta.env.VITE_API_BASE || "http://localhost:8080/api/v1"}/llm/providers/${provider.id}/history`, { headers })
+    fetch(`${import.meta.env.VITE_API_BASE || "http://localhost:8081/api/v1"}/llm/providers/${provider.id}/history`, { headers })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => setHistory(data?.data || []))
       .catch(() => setHistory([]));

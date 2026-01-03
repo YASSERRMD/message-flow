@@ -9,7 +9,7 @@ import FeatureAssignmentPanel from "./FeatureAssignmentPanel.jsx";
 import SettingsPanel from "./SettingsPanel.jsx";
 import AlertPanel from "./AlertPanel.jsx";
 
-const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8080/api/v1";
+const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8081/api/v1";
 
 const providerModels = {
   claude: ["claude-3-opus-20240229", "claude-3-sonnet-20240229"],

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import CommentThread from "./CommentThread.jsx";
 
-const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8080/api/v1";
+const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8081/api/v1";
 
 const columns = [
   { id: "new", title: "New" },

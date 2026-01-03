@@ -4,7 +4,7 @@ import LLMProviderDashboard from "./components/llm/LLMProviderDashboard.jsx";
 import ErrorBoundary from "./components/llm/ErrorBoundary.jsx";
 import CollaborationPage from "./components/CollaborationPage.jsx";
 
-const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8080/api/v1";
+const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8081/api/v1";
 
 export default function App() {
   const [view, setView] = useState("operations");
