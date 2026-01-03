@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type importantMessageResponse struct {
@@ -26,28 +28,32 @@ func (a *API) ListImportantMessages(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
-	rows, err := a.Store.Pool.Query(ctx, `
-		SELECT im.id, im.message_id, im.priority, im.reason, im.created_at,
-		       m.conversation_id, m.sender, m.content, m.timestamp
-		FROM important_messages im
-		JOIN messages m ON m.id = im.message_id
-		WHERE im.tenant_id=$1
-		ORDER BY im.created_at DESC
-		LIMIT $2 OFFSET $3`, tenantID, limit, offset)
-	if err != nil {
+	items := []importantMessageResponse{}
+	if err := a.Store.WithTenantConn(ctx, tenantID, func(conn *pgxpool.Conn) error {
+		rows, err := conn.Query(ctx, `
+			SELECT im.id, im.message_id, im.priority, im.reason, im.created_at,
+			       m.conversation_id, m.sender, m.content, m.timestamp
+			FROM important_messages im
+			JOIN messages m ON m.id = im.message_id
+			WHERE im.tenant_id=$1
+			ORDER BY im.created_at DESC
+			LIMIT $2 OFFSET $3`, tenantID, limit, offset)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var item importantMessageResponse
+			if err := rows.Scan(&item.ID, &item.MessageID, &item.Priority, &item.Reason, &item.CreatedAt, &item.ConversationID, &item.Sender, &item.Content, &item.Timestamp); err != nil {
+				return err
+			}
+			items = append(items, item)
+		}
+		return rows.Err()
+	}); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to list important messages")
 		return
-	}
-	defer rows.Close()
-
-	items := []importantMessageResponse{}
-	for rows.Next() {
-		var item importantMessageResponse
-		if err := rows.Scan(&item.ID, &item.MessageID, &item.Priority, &item.Reason, &item.CreatedAt, &item.ConversationID, &item.Sender, &item.Content, &item.Timestamp); err != nil {
-			writeError(w, http.StatusInternalServerError, "failed to read important messages")
-			return
-		}
-		items = append(items, item)
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{

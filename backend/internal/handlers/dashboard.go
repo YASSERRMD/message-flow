@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"message-flow/backend/internal/models"
 )
 
@@ -25,11 +27,16 @@ func (a *API) GetDashboard(w http.ResponseWriter, r *http.Request) {
 		{"SELECT COUNT(*) FROM action_items WHERE tenant_id=$1 AND status NOT IN ('done','completed')", &summary.OpenActionItems},
 	}
 
-	for _, q := range queries {
-		if err := a.Store.Pool.QueryRow(ctx, q.query, tenantID).Scan(q.dest); err != nil {
-			writeError(w, http.StatusInternalServerError, "failed to load dashboard")
-			return
+	if err := a.Store.WithTenantConn(ctx, tenantID, func(conn *pgxpool.Conn) error {
+		for _, q := range queries {
+			if err := conn.QueryRow(ctx, q.query, tenantID).Scan(q.dest); err != nil {
+				return err
+			}
 		}
+		return nil
+	}); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load dashboard")
+		return
 	}
 
 	writeJSON(w, http.StatusOK, summary)
@@ -46,7 +53,7 @@ func (a *API) StreamDashboard(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 
-	icker := time.NewTicker(5 * time.Second)
+	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 
 	for {

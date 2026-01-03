@@ -6,18 +6,25 @@ import (
 	"strconv"
 	"strings"
 
+	"message-flow/backend/internal/auth"
 	"message-flow/backend/internal/db"
+	"message-flow/backend/internal/realtime"
 )
 
 type API struct {
 	Store *db.Store
+	Auth  *auth.Service
+	Hub   *realtime.Hub
 }
 
-func NewAPI(store *db.Store) *API {
-	return &API{Store: store}
+func NewAPI(store *db.Store, authService *auth.Service, hub *realtime.Hub) *API {
+	return &API{Store: store, Auth: authService, Hub: hub}
 }
 
 func (a *API) tenantID(r *http.Request) int64 {
+	if user, ok := auth.UserFromContext(r.Context()); ok {
+		return user.TenantID
+	}
 	value := r.Header.Get("X-Tenant-ID")
 	if value == "" {
 		return 1

@@ -27,3 +27,19 @@ func (s *Store) Close() {
 		s.Pool.Close()
 	}
 }
+
+func (s *Store) WithTenantConn(ctx context.Context, tenantID int64, fn func(*pgxpool.Conn) error) error {
+	conn, err := s.Pool.Acquire(ctx)
+	if err != nil {
+		return err
+	}
+	defer conn.Release()
+
+	if _, err := conn.Exec(ctx, "SET app.tenant_id = $1", tenantID); err != nil {
+		return err
+	}
+	defer func() {
+		_, _ = conn.Exec(ctx, "RESET app.tenant_id")
+	}()
+	return fn(conn)
+}

@@ -78,3 +78,33 @@ CREATE TABLE IF NOT EXISTS user_activity_logs (
 );
 
 CREATE INDEX IF NOT EXISTS user_activity_logs_tenant_created_idx ON user_activity_logs (tenant_id, created_at DESC);
+
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE conversations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE daily_summaries ENABLE ROW LEVEL SECURITY;
+ALTER TABLE important_messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE action_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_activity_logs ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY tenant_isolation_users ON users
+  USING (tenant_id = current_setting('app.tenant_id')::bigint)
+  WITH CHECK (tenant_id = current_setting('app.tenant_id')::bigint);
+CREATE POLICY tenant_isolation_conversations ON conversations
+  USING (tenant_id = current_setting('app.tenant_id')::bigint)
+  WITH CHECK (tenant_id = current_setting('app.tenant_id')::bigint);
+CREATE POLICY tenant_isolation_messages ON messages
+  USING (tenant_id = current_setting('app.tenant_id')::bigint)
+  WITH CHECK (tenant_id = current_setting('app.tenant_id')::bigint);
+CREATE POLICY tenant_isolation_daily_summaries ON daily_summaries
+  USING (tenant_id = current_setting('app.tenant_id')::bigint)
+  WITH CHECK (tenant_id = current_setting('app.tenant_id')::bigint);
+CREATE POLICY tenant_isolation_important_messages ON important_messages
+  USING (tenant_id = current_setting('app.tenant_id')::bigint)
+  WITH CHECK (tenant_id = current_setting('app.tenant_id')::bigint);
+CREATE POLICY tenant_isolation_action_items ON action_items
+  USING (tenant_id = current_setting('app.tenant_id')::bigint)
+  WITH CHECK (tenant_id = current_setting('app.tenant_id')::bigint);
+CREATE POLICY tenant_isolation_user_activity_logs ON user_activity_logs
+  USING (tenant_id = current_setting('app.tenant_id')::bigint)
+  WITH CHECK (tenant_id = current_setting('app.tenant_id')::bigint);

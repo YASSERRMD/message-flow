@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"message-flow/backend/internal/models"
 )
 
@@ -21,9 +23,11 @@ func (a *API) GetDailySummary(w http.ResponseWriter, r *http.Request) {
 		ORDER BY created_at DESC
 		LIMIT 1`
 
-	if err := a.Store.Pool.QueryRow(ctx, query, tenantID).Scan(
-		&summary.ID, &summary.TenantID, &summary.ConversationID, &summary.SummaryText, &summary.KeyPointsJSON, &summary.CreatedAt,
-	); err != nil {
+	if err := a.Store.WithTenantConn(ctx, tenantID, func(conn *pgxpool.Conn) error {
+		return conn.QueryRow(ctx, query, tenantID).Scan(
+			&summary.ID, &summary.TenantID, &summary.ConversationID, &summary.SummaryText, &summary.KeyPointsJSON, &summary.CreatedAt,
+		)
+	}); err != nil {
 		writeError(w, http.StatusNotFound, "no summary available")
 		return
 	}

@@ -5,6 +5,9 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"message-flow/backend/internal/auth"
 	"message-flow/backend/internal/models"
 )
 
@@ -47,16 +50,34 @@ func (a *API) ReplyMessage(w http.ResponseWriter, r *http.Request) {
 		VALUES ($1, $2, $3, $4, $5, NULL, $6)
 		RETURNING id, tenant_id, conversation_id, sender, content, timestamp, metadata_json, created_at`
 
-	if err := a.Store.Pool.QueryRow(ctx, query, tenantID, req.ConversationID, sender, req.Content, now, now).Scan(
-		&message.ID, &message.TenantID, &message.ConversationID, &message.Sender, &message.Content, &message.Timestamp, &message.MetadataJSON, &message.CreatedAt,
-	); err != nil {
+	if err := a.Store.WithTenantConn(ctx, tenantID, func(conn *pgxpool.Conn) error {
+		return conn.QueryRow(ctx, query, tenantID, req.ConversationID, sender, req.Content, now, now).Scan(
+			&message.ID, &message.TenantID, &message.ConversationID, &message.Sender, &message.Content, &message.Timestamp, &message.MetadataJSON, &message.CreatedAt,
+		)
+	}); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to send reply")
 		return
 	}
 
-	_, _ = a.Store.Pool.Exec(ctx, `
-		UPDATE conversations SET last_message_at=$1
-		WHERE id=$2 AND tenant_id=$3`, now, req.ConversationID, tenantID)
+	_ = a.Store.WithTenantConn(ctx, tenantID, func(conn *pgxpool.Conn) error {
+		_, err := conn.Exec(ctx, `
+			UPDATE conversations SET last_message_at=$1
+			WHERE id=$2 AND tenant_id=$3`, now, req.ConversationID, tenantID)
+		return err
+	})
+
+	if user, ok := auth.UserFromContext(r.Context()); ok {
+		a.logActivity(ctx, tenantID, user, "message.reply", map[string]any{
+			"conversation_id": req.ConversationID,
+			"message_id":      message.ID,
+		})
+	}
+	if a.Hub != nil {
+		a.Hub.Broadcast(tenantID, map[string]any{
+			"type":       "message.reply",
+			"message_id": message.ID,
+		})
+	}
 
 	writeJSON(w, http.StatusCreated, message)
 }
@@ -81,8 +102,10 @@ func (a *API) ForwardMessage(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	var content string
-	if err := a.Store.Pool.QueryRow(ctx, `
-		SELECT content FROM messages WHERE id=$1 AND tenant_id=$2`, req.MessageID, tenantID).Scan(&content); err != nil {
+	if err := a.Store.WithTenantConn(ctx, tenantID, func(conn *pgxpool.Conn) error {
+		return conn.QueryRow(ctx, `
+			SELECT content FROM messages WHERE id=$1 AND tenant_id=$2`, req.MessageID, tenantID).Scan(&content)
+	}); err != nil {
 		writeError(w, http.StatusNotFound, "message not found")
 		return
 	}
@@ -94,16 +117,35 @@ func (a *API) ForwardMessage(w http.ResponseWriter, r *http.Request) {
 		VALUES ($1, $2, $3, $4, $5, NULL, $6)
 		RETURNING id, tenant_id, conversation_id, sender, content, timestamp, metadata_json, created_at`
 
-	if err := a.Store.Pool.QueryRow(ctx, query, tenantID, req.TargetConversationID, sender, content, now, now).Scan(
-		&message.ID, &message.TenantID, &message.ConversationID, &message.Sender, &message.Content, &message.Timestamp, &message.MetadataJSON, &message.CreatedAt,
-	); err != nil {
+	if err := a.Store.WithTenantConn(ctx, tenantID, func(conn *pgxpool.Conn) error {
+		return conn.QueryRow(ctx, query, tenantID, req.TargetConversationID, sender, content, now, now).Scan(
+			&message.ID, &message.TenantID, &message.ConversationID, &message.Sender, &message.Content, &message.Timestamp, &message.MetadataJSON, &message.CreatedAt,
+		)
+	}); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to forward message")
 		return
 	}
 
-	_, _ = a.Store.Pool.Exec(ctx, `
-		UPDATE conversations SET last_message_at=$1
-		WHERE id=$2 AND tenant_id=$3`, now, req.TargetConversationID, tenantID)
+	_ = a.Store.WithTenantConn(ctx, tenantID, func(conn *pgxpool.Conn) error {
+		_, err := conn.Exec(ctx, `
+			UPDATE conversations SET last_message_at=$1
+			WHERE id=$2 AND tenant_id=$3`, now, req.TargetConversationID, tenantID)
+		return err
+	})
+
+	if user, ok := auth.UserFromContext(r.Context()); ok {
+		a.logActivity(ctx, tenantID, user, "message.forward", map[string]any{
+			"source_message_id": req.MessageID,
+			"target_message_id": message.ID,
+			"conversation_id":   req.TargetConversationID,
+		})
+	}
+	if a.Hub != nil {
+		a.Hub.Broadcast(tenantID, map[string]any{
+			"type":       "message.forward",
+			"message_id": message.ID,
+		})
+	}
 
 	writeJSON(w, http.StatusCreated, message)
 }

@@ -9,9 +9,12 @@ import (
 	"syscall"
 	"time"
 
+	"message-flow/backend/internal/auth"
 	"message-flow/backend/internal/config"
 	"message-flow/backend/internal/db"
 	"message-flow/backend/internal/handlers"
+	"message-flow/backend/internal/middleware"
+	"message-flow/backend/internal/realtime"
 	"message-flow/backend/internal/router"
 )
 
@@ -27,8 +30,14 @@ func main() {
 	}
 	defer store.Close()
 
-	api := handlers.NewAPI(store)
-	rt := router.New(api)
+	authService, err := auth.NewService(cfg.JWTSecret, 24*time.Hour)
+	if err != nil {
+		log.Fatalf("failed to init auth: %v", err)
+	}
+	hub := realtime.NewHub()
+	api := handlers.NewAPI(store, authService, hub)
+	limiter := middleware.NewRateLimiter(60, time.Minute)
+	rt := router.New(api, authService, limiter, cfg.FrontendOrigin, hub)
 
 	server := &http.Server{
 		Addr:         ":" + cfg.Port,

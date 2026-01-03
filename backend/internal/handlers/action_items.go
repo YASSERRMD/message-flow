@@ -5,6 +5,9 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"message-flow/backend/internal/auth"
 	"message-flow/backend/internal/models"
 )
 
@@ -58,11 +61,26 @@ func (a *API) CreateActionItem(w http.ResponseWriter, r *http.Request) {
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		RETURNING id, tenant_id, conversation_id, description, status, assigned_to, due_date, created_at`
 
-	if err := a.Store.Pool.QueryRow(ctx, query, tenantID, req.ConversationID, req.Description, status, req.AssignedTo, dueDate, time.Now().UTC()).Scan(
-		&item.ID, &item.TenantID, &item.ConversationID, &item.Description, &item.Status, &item.AssignedTo, &item.DueDate, &item.CreatedAt,
-	); err != nil {
+	if err := a.Store.WithTenantConn(ctx, tenantID, func(conn *pgxpool.Conn) error {
+		return conn.QueryRow(ctx, query, tenantID, req.ConversationID, req.Description, status, req.AssignedTo, dueDate, time.Now().UTC()).Scan(
+			&item.ID, &item.TenantID, &item.ConversationID, &item.Description, &item.Status, &item.AssignedTo, &item.DueDate, &item.CreatedAt,
+		)
+	}); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to create action item")
 		return
+	}
+
+	if user, ok := auth.UserFromContext(r.Context()); ok {
+		a.logActivity(ctx, tenantID, user, "action_item.create", map[string]any{
+			"action_item_id":  item.ID,
+			"conversation_id": item.ConversationID,
+		})
+	}
+	if a.Hub != nil {
+		a.Hub.Broadcast(tenantID, map[string]any{
+			"type": "action_item.create",
+			"id":   item.ID,
+		})
 	}
 
 	writeJSON(w, http.StatusCreated, item)
@@ -103,11 +121,26 @@ func (a *API) UpdateActionItem(w http.ResponseWriter, r *http.Request, actionIte
 		WHERE id=$5 AND tenant_id=$6
 		RETURNING id, tenant_id, conversation_id, description, status, assigned_to, due_date, created_at`
 
-	if err := a.Store.Pool.QueryRow(ctx, query, req.Description, req.Status, req.AssignedTo, dueDate, actionItemID, tenantID).Scan(
-		&item.ID, &item.TenantID, &item.ConversationID, &item.Description, &item.Status, &item.AssignedTo, &item.DueDate, &item.CreatedAt,
-	); err != nil {
+	if err := a.Store.WithTenantConn(ctx, tenantID, func(conn *pgxpool.Conn) error {
+		return conn.QueryRow(ctx, query, req.Description, req.Status, req.AssignedTo, dueDate, actionItemID, tenantID).Scan(
+			&item.ID, &item.TenantID, &item.ConversationID, &item.Description, &item.Status, &item.AssignedTo, &item.DueDate, &item.CreatedAt,
+		)
+	}); err != nil {
 		writeError(w, http.StatusNotFound, "action item not found")
 		return
+	}
+
+	if user, ok := auth.UserFromContext(r.Context()); ok {
+		a.logActivity(ctx, tenantID, user, "action_item.update", map[string]any{
+			"action_item_id":  item.ID,
+			"conversation_id": item.ConversationID,
+		})
+	}
+	if a.Hub != nil {
+		a.Hub.Broadcast(tenantID, map[string]any{
+			"type": "action_item.update",
+			"id":   item.ID,
+		})
 	}
 
 	writeJSON(w, http.StatusOK, item)
@@ -118,15 +151,34 @@ func (a *API) DeleteActionItem(w http.ResponseWriter, r *http.Request, actionIte
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
-	command, err := a.Store.Pool.Exec(ctx, `
-		DELETE FROM action_items WHERE id=$1 AND tenant_id=$2`, actionItemID, tenantID)
-	if err != nil {
+	var rowsAffected int64
+	if err := a.Store.WithTenantConn(ctx, tenantID, func(conn *pgxpool.Conn) error {
+		command, err := conn.Exec(ctx, `
+			DELETE FROM action_items WHERE id=$1 AND tenant_id=$2`, actionItemID, tenantID)
+		if err != nil {
+			return err
+		}
+		rowsAffected = command.RowsAffected()
+		return nil
+	}); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to delete action item")
 		return
 	}
-	if command.RowsAffected() == 0 {
+	if rowsAffected == 0 {
 		writeError(w, http.StatusNotFound, "action item not found")
 		return
+	}
+
+	if user, ok := auth.UserFromContext(r.Context()); ok {
+		a.logActivity(ctx, tenantID, user, "action_item.delete", map[string]any{
+			"action_item_id": actionItemID,
+		})
+	}
+	if a.Hub != nil {
+		a.Hub.Broadcast(tenantID, map[string]any{
+			"type": "action_item.delete",
+			"id":   actionItemID,
+		})
 	}
 
 	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
@@ -140,26 +192,30 @@ func (a *API) ListActionItems(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
-	rows, err := a.Store.Pool.Query(ctx, `
-		SELECT id, tenant_id, conversation_id, description, status, assigned_to, due_date, created_at
-		FROM action_items
-		WHERE tenant_id=$1
-		ORDER BY created_at DESC
-		LIMIT $2 OFFSET $3`, tenantID, limit, offset)
-	if err != nil {
+	items := []models.ActionItem{}
+	if err := a.Store.WithTenantConn(ctx, tenantID, func(conn *pgxpool.Conn) error {
+		rows, err := conn.Query(ctx, `
+			SELECT id, tenant_id, conversation_id, description, status, assigned_to, due_date, created_at
+			FROM action_items
+			WHERE tenant_id=$1
+			ORDER BY created_at DESC
+			LIMIT $2 OFFSET $3`, tenantID, limit, offset)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var item models.ActionItem
+			if err := rows.Scan(&item.ID, &item.TenantID, &item.ConversationID, &item.Description, &item.Status, &item.AssignedTo, &item.DueDate, &item.CreatedAt); err != nil {
+				return err
+			}
+			items = append(items, item)
+		}
+		return rows.Err()
+	}); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to list action items")
 		return
-	}
-	defer rows.Close()
-
-	items := []models.ActionItem{}
-	for rows.Next() {
-		var item models.ActionItem
-		if err := rows.Scan(&item.ID, &item.TenantID, &item.ConversationID, &item.Description, &item.Status, &item.AssignedTo, &item.DueDate, &item.CreatedAt); err != nil {
-			writeError(w, http.StatusInternalServerError, "failed to read action items")
-			return
-		}
-		items = append(items, item)
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
