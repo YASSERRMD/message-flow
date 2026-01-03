@@ -440,6 +440,16 @@ func (rt *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			rt.api.Register(w, r)
 			return
 		}
+	case path == "/api/v1/auth/whatsapp/qr":
+		if r.Method == http.MethodGet {
+			rt.api.StartWhatsAppAuth(w, r)
+			return
+		}
+	case path == "/api/v1/auth/whatsapp/status":
+		if r.Method == http.MethodGet {
+			rt.api.WhatsAppAuthStatus(w, r)
+			return
+		}
 	case path == "/api/v1/auth/me":
 		if r.Method == http.MethodGet {
 			rt.api.Me(w, r)
@@ -453,7 +463,7 @@ func (rt *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func requiresAuth(path string) bool {
 	switch path {
-	case "/api/v1/auth/login", "/api/v1/auth/register", "/api/v1/webhooks/incoming":
+	case "/api/v1/auth/login", "/api/v1/auth/register", "/api/v1/auth/whatsapp/qr", "/api/v1/auth/whatsapp/status", "/api/v1/webhooks/incoming":
 		return false
 	default:
 		return strings.HasPrefix(path, "/api/v1/")

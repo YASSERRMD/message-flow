@@ -72,6 +72,8 @@ func RequiredRole(path, method string) string {
 	switch {
 	case path == "/api/v1/auth/login", path == "/api/v1/auth/register":
 		return ""
+	case path == "/api/v1/auth/whatsapp/qr", path == "/api/v1/auth/whatsapp/status":
+		return ""
 	case path == "/api/v1/ws":
 		return roleViewer
 	case path == "/api/v1/dashboard":

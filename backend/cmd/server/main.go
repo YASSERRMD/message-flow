@@ -17,6 +17,7 @@ import (
 	"message-flow/backend/internal/middleware"
 	"message-flow/backend/internal/realtime"
 	"message-flow/backend/internal/router"
+	"message-flow/backend/internal/whatsapp"
 )
 
 func main() {
@@ -56,7 +57,17 @@ func main() {
 		workerScheduler = llm.NewWorkerScheduler(llmQueue, llmService, store, hub)
 	}
 
-	api := handlers.NewAPI(store, authService, hub, llmService, llmStore, llmQueue, healthScheduler, workerScheduler)
+	var waManager *whatsapp.Manager
+	if cfg.DatabaseURL != "" {
+		manager, err := whatsapp.NewManager(ctx, cfg.DatabaseURL)
+		if err != nil {
+			log.Printf("failed to init whatsapp manager: %v", err)
+		} else {
+			waManager = manager
+		}
+	}
+
+	api := handlers.NewAPI(store, authService, hub, llmService, llmStore, llmQueue, healthScheduler, workerScheduler, waManager)
 	limiter := middleware.NewRateLimiter(60, time.Minute)
 	rt := router.New(api, authService, limiter, cfg.FrontendOrigin, hub)
 

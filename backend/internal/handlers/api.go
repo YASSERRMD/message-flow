@@ -10,6 +10,7 @@ import (
 	"message-flow/backend/internal/db"
 	"message-flow/backend/internal/llm"
 	"message-flow/backend/internal/realtime"
+	"message-flow/backend/internal/whatsapp"
 )
 
 type API struct {
@@ -21,10 +22,11 @@ type API struct {
 	Queue           *llm.Queue
 	HealthScheduler *llm.HealthScheduler
 	WorkerScheduler *llm.WorkerScheduler
+	WhatsApp        *whatsapp.Manager
 }
 
-func NewAPI(store *db.Store, authService *auth.Service, hub *realtime.Hub, llmService *llm.Service, llmStore *llm.Store, queue *llm.Queue, scheduler *llm.HealthScheduler, workerScheduler *llm.WorkerScheduler) *API {
-	return &API{Store: store, Auth: authService, Hub: hub, LLM: llmService, LLMStore: llmStore, Queue: queue, HealthScheduler: scheduler, WorkerScheduler: workerScheduler}
+func NewAPI(store *db.Store, authService *auth.Service, hub *realtime.Hub, llmService *llm.Service, llmStore *llm.Store, queue *llm.Queue, scheduler *llm.HealthScheduler, workerScheduler *llm.WorkerScheduler, waManager *whatsapp.Manager) *API {
+	return &API{Store: store, Auth: authService, Hub: hub, LLM: llmService, LLMStore: llmStore, Queue: queue, HealthScheduler: scheduler, WorkerScheduler: workerScheduler, WhatsApp: waManager}
 }
 
 func (a *API) tenantID(r *http.Request) int64 {
