@@ -27,14 +27,14 @@ export default function App() {
           setRole(data.role);
         }
       })
-      .catch(() => {});
+      .catch(() => { });
   }, [token, csrf]);
 
   return (
     <div>
       <nav className="app-nav">
         <div className="nav-brand">
-          <img src="/logo.png" alt="MessageFlow logo" />
+          <img src="/logo.png?v=4" alt="MessageFlow logo" />
         </div>
         <div className="nav-actions">
           <button
