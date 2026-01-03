@@ -1,192 +1,158 @@
-@import url("https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Outfit:wght@300;400;500;600&display=swap");
-
 :root {
-  --bg: #030712;
-  --bg-gradient: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
-  --sidebar-bg: rgba(15, 23, 42, 0.6);
-  --chat-bg: rgba(30, 41, 59, 0.4);
+  --bg: #0f172a;
+  --bg-gradient: radial-gradient(circle at top center, #1e293b 0%, #0f172a 100%);
+  --sidebar-bg: rgba(30, 41, 59, 0.5);
+  --chat-bg: rgba(30, 41, 59, 0.3);
   --border: rgba(255, 255, 255, 0.08);
   --text-main: #f8fafc;
   --text-muted: #94a3b8;
-  --accent: #8b5cf6;
-  --accent-gradient: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
-  --incoming-bubble: rgba(255, 255, 255, 0.05);
-  --outgoing-bubble: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-  --shadow: 0 20px 50px -12px rgba(0, 0, 0, 0.5);
-  --glass-border: 1px solid rgba(255, 255, 255, 0.08);
-  --font-sans: "Outfit", sans-serif;
+  --accent: #6366f1;
+  --accent-hover: #4f46e5;
+  --incoming-bubble: rgba(255, 255, 255, 0.08);
+  --outgoing-bubble: #6366f1;
+  --shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.4);
+  --radius: 16px;
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
 }
 
 :root[data-theme="dark"] {
-  --bg: #030712;
-  --bg-gradient: linear-gradient(135deg, #020617 0%, #1e1b4b 100%);
-  --sidebar-bg: rgba(2, 6, 23, 0.7);
-  --chat-bg: rgba(15, 23, 42, 0.4);
-  --border: rgba(255, 255, 255, 0.06);
+  --bg: #0f172a;
 }
 
 * {
   box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
   margin: 0;
   font-family: var(--font-sans);
   color: var(--text-main);
-  background: var(--bg-gradient);
+  background: var(--bg);
+  background-image: var(--bg-gradient);
+  background-attachment: fixed;
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 button,
 input,
 select {
   font-family: inherit;
+  font-size: 14px;
 }
 
 .app {
-  min-height: 100vh;
-  padding: 24px 4vw 40px;
-  position: relative;
-  max-width: 1400px;
+  max-width: 1600px;
   margin: 0 auto;
+  padding: 24px;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 
-.halo {
-  display: none;
+.app-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px 24px 12px;
+}
+
+.nav-brand img {
+  height: 40px;
+  width: auto;
+  display: block;
+}
+
+.nav-actions {
+  display: flex;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 4px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+}
+
+.nav-actions button {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  padding: 8px 16px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.nav-actions button:hover {
+  color: var(--text-main);
+}
+
+.nav-actions button.primary {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-main);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .wa-layout {
   display: grid;
-  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr) minmax(260px, 340px);
-  gap: 16px;
-  align-items: stretch;
+  grid-template-columns: 320px 1fr 340px;
+  gap: 20px;
+  flex: 1;
+  min-height: 0;
+  /* Important for scrollable children */
 }
 
+/* Glass Panels with cleaner look */
 .wa-sidebar,
 .wa-chat,
 .wa-ai {
   background: var(--sidebar-bg);
-  backdrop-filter: blur(16px);
-  border: var(--glass-border);
-  border-radius: 24px;
-  box-shadow: var(--shadow);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  backdrop-filter: blur(12px);
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
-  transition: transform 0.3s ease, border-color 0.3s ease;
 }
 
 .wa-chat {
   background: var(--chat-bg);
 }
 
-.wa-sidebar:hover,
-.wa-chat:hover {
-  border-color: rgba(255, 255, 255, 0.15);
-}
-
-.wa-sidebar {
-  display: flex;
-  flex-direction: column;
-  min-height: 70vh;
-}
-
-.wa-sidebar-top {
-  padding: 16px;
-  background: var(--surface-alt);
-  border-bottom: 1px solid var(--border);
-  display: grid;
-  gap: 14px;
-}
-
-.wa-workspace {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.wa-workspace h2 {
-  font-size: 18px;
-  margin: 2px 0 0;
-}
-
-.wa-label {
-  text-transform: uppercase;
-  letter-spacing: 0.2em;
-  font-size: 11px;
-  color: var(--muted);
-  margin: 0;
-}
-
-.wa-meta {
-  color: var(--muted);
-  font-size: 13px;
-}
-
-.wa-connect {
-  display: grid;
-  gap: 10px;
-  padding: 12px;
-  border-radius: 16px;
-  border: 1px dashed rgba(37, 211, 102, 0.4);
-  background: rgba(37, 211, 102, 0.08);
-}
-
-.wa-connect.is-connected {
-  border-style: solid;
-  background: rgba(37, 211, 102, 0.14);
-}
-
-.wa-connect-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 10px;
-}
-
+/* QR / Log Area Transparency */
 .wa-connect-qr {
-  display: grid;
-  place-items: center;
-  border-radius: 14px;
-  background: var(--surface);
-  padding: 10px;
-  min-height: 140px;
+  background: transparent !important;
+  /* Ensure no white box */
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  aspect-ratio: 1;
 }
 
 .wa-connect-qr img {
-  max-width: 180px;
-  width: 100%;
-  height: auto;
+  border-radius: 8px;
+  /* Soften QR corners */
+  mix-blend-mode: screen;
+  /* Optional: if QR has black bg, this helps integration, otherwise normal */
 }
 
-.wa-connect-actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.wa-connect-status {
+/* Log area fix */
+.wa-log {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  font-family: monospace;
   font-size: 12px;
-  color: var(--muted);
-}
-
-.wa-conversations {
-  padding: 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  flex: 1;
-}
-
-.wa-conversations-header {
-  display: grid;
-  gap: 8px;
-}
-
-.wa-conversations-header h3 {
-  margin: 0;
-  font-size: 16px;
+  color: #a5b4fc;
+  margin-top: 12px;
+  max-height: 150px;
+  overflow-y: auto;
 }
 
 .wa-search {

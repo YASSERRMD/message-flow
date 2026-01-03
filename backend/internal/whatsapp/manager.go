@@ -99,20 +99,21 @@ func (m *Manager) consumeQR(session *Session, qrChan <-chan whatsmeow.QRChannelI
 	for item := range qrChan {
 		m.mu.Lock()
 		session.UpdatedAt = time.Now().UTC()
+
 		switch item.Event {
-		case whatsmeow.QRChannelEventCode:
+		case "code":
 			session.Status = "pending"
 			session.LastQR = item.Code
 			session.LastExpiry = item.Timeout
-		case whatsmeow.QRChannelEventError:
-			session.Status = "error"
-			if item.Error != nil {
-				session.Error = item.Error.Error()
-			}
 		case "success":
 			session.Status = "connected"
 		case "timeout":
 			session.Status = "timeout"
+		case "error":
+			session.Status = "error"
+			if item.Error != nil {
+				session.Error = item.Error.Error()
+			}
 		default:
 			session.Status = item.Event
 		}
