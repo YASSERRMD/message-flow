@@ -24,7 +24,7 @@ const formatDate = (value) => {
 };
 
 export default function DashboardPage() {
-  const [theme, setTheme] = useStoredState("mf-theme", "light");
+  const [theme, setTheme] = useStoredState("mf-theme", "dark");
   const [token, setToken] = useStoredState("mf-token", "");
   const [csrf, setCsrf] = useStoredState("mf-csrf", "");
   const [tenantId, setTenantId] = useStoredState("mf-tenant", 1);
@@ -82,7 +82,7 @@ export default function DashboardPage() {
     try {
       const [summaryRes, convoRes, importantRes, actionsRes, dailyRes] = await Promise.all([
         fetch(`${API_BASE}/dashboard`, { headers }),
-        fetch(`${API_BASE}/conversations?limit=12`, { headers }),
+        fetch(`${API_BASE}/conversations?limit=50`, { headers }),
         fetch(`${API_BASE}/important-messages?limit=8`, { headers }),
         fetch(`${API_BASE}/action-items?limit=12`, { headers }),
         fetch(`${API_BASE}/daily-summary`, { headers })
@@ -213,6 +213,8 @@ export default function DashboardPage() {
       setAuthStatus("signed-in");
       setQrStatus("connected");
       setQrError("");
+      setQrImage(""); // Clear QR image after successful connection
+      loadDashboard(); // Reload dashboard data
       return;
     }
     if (data.qr_code) {
@@ -222,13 +224,13 @@ export default function DashboardPage() {
     if (data.error) {
       setQrError(data.error);
     }
-  }, [qrSession, tenantId, setToken, setCsrf, setTenantId]);
+  }, [qrSession, tenantId, setToken, setCsrf, setTenantId, loadDashboard]);
 
   useEffect(() => {
     if (!qrSession || authStatus === "signed-in") return;
     const timer = setInterval(() => {
       pollWhatsAppStatus();
-    }, 3000);
+    }, 2000); // Poll every 2 seconds for faster response
     return () => clearInterval(timer);
   }, [qrSession, pollWhatsAppStatus, authStatus]);
 
@@ -286,81 +288,171 @@ export default function DashboardPage() {
     }
   };
 
+  const handleLogout = () => {
+    setToken("");
+    setCsrf("");
+    setUser(null);
+    setAuthStatus("signed-out");
+    setQrSession("");
+    setQrImage("");
+    setQrStatus("idle");
+    setConversations([]);
+    setMessages([]);
+    setSelectedConversation(null);
+  };
+
+  // Render connection panel when not signed in
+  const renderConnectionPanel = () => {
+    if (authStatus === "signed-in") {
+      return (
+        <div className="connection-status connected">
+          <div className="status-icon">✓</div>
+          <div className="status-info">
+            <strong>WhatsApp Connected</strong>
+            <span>{conversations.length} conversations synced</span>
+          </div>
+          <button className="btn-disconnect" onClick={handleLogout}>
+            Disconnect
+          </button>
+        </div>
+      );
+    }
+
+    return (
+      <div className="connection-panel">
+        <div className="connection-header">
+          <h3>Connect WhatsApp</h3>
+          <p>Scan the QR code with your WhatsApp mobile app to sync messages</p>
+        </div>
+
+        <div className="qr-container">
+          {qrStatus === "loading" ? (
+            <div className="qr-loading">
+              <div className="spinner"></div>
+              <span>Generating QR code...</span>
+            </div>
+          ) : qrImage ? (
+            <div className="qr-code">
+              <img src={qrImage} alt="WhatsApp QR code" />
+              <div className="qr-timer">
+                {qrStatus === "pending" && <span>Waiting for scan...</span>}
+              </div>
+            </div>
+          ) : (
+            <div className="qr-placeholder">
+              <div className="qr-icon">📱</div>
+              <span>Click below to generate QR code</span>
+            </div>
+          )}
+        </div>
+
+        {qrError && <div className="error-message">{qrError}</div>}
+
+        <button
+          className="btn-primary"
+          onClick={startWhatsAppConnect}
+          disabled={qrStatus === "loading"}
+        >
+          {qrStatus === "loading" ? "Generating..." : qrImage ? "Refresh QR" : "Generate QR Code"}
+        </button>
+
+        <div className="connection-steps">
+          <div className="step">
+            <span className="step-num">1</span>
+            <span>Open WhatsApp on your phone</span>
+          </div>
+          <div className="step">
+            <span className="step-num">2</span>
+            <span>Go to Settings → Linked Devices</span>
+          </div>
+          <div className="step">
+            <span className="step-num">3</span>
+            <span>Tap "Link a Device" and scan</span>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
-    <div className="app">
-      <div className="wa-layout">
-        <aside className="wa-sidebar">
-          <div className="wa-sidebar-top">
-            <div className="wa-workspace">
-              <div>
-                <p className="wa-label">Workspace</p>
-                <h2>Tenant {tenantId}</h2>
-                <div className="wa-meta">{user ? user.email : "Not signed in"}</div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setTheme(theme === "light" ? "dark" : "light")}
-                className="ghost-button"
-              >
-                {theme === "light" ? "Dark" : "Light"} mode
-              </button>
+    <div className="app" data-theme={theme}>
+      <div className="dashboard-layout">
+        {/* Left Sidebar - Conversations */}
+        <aside className="sidebar-left">
+          <div className="sidebar-header">
+            <div className="user-info">
+              <h2>MessageFlow</h2>
+              <span className="user-email">{user?.email || "Not connected"}</span>
             </div>
-            <div className={`wa-connect ${authStatus === "signed-in" ? "is-connected" : ""}`}>
-              <div className="wa-connect-header">
-                <strong>{authStatus === "signed-in" ? "WhatsApp Connected" : "Connect WhatsApp"}</strong>
-                <span className="wa-meta">{authStatus === "signed-in" ? "Live sync" : "QR pairing"}</span>
-              </div>
-              <div className="wa-connect-qr">
-                {qrImage ? (
-                  <img src={qrImage} alt="WhatsApp QR code" />
-                ) : (
-                  <span className="wa-meta">Generate QR to connect</span>
-                )}
-              </div>
-              <div className="wa-connect-actions">
-                <button className="primary" type="button" onClick={startWhatsAppConnect}>
-                  {qrStatus === "loading" ? "Generating…" : "Generate QR"}
-                </button>
-                <span className="wa-connect-status">
-                  {qrTimeout ? `Refreshes in ${qrTimeout}s` : `Status: ${qrStatus}`}
-                </span>
-              </div>
-              {qrError && <p className="error-text">{qrError}</p>}
-            </div>
+            <button
+              className="btn-theme"
+              onClick={() => setTheme(theme === "light" ? "dark" : "light")}
+              title="Toggle theme"
+            >
+              {theme === "light" ? "🌙" : "☀️"}
+            </button>
           </div>
 
-          <ConversationsSidebar
-            conversations={filteredConversations}
-            selected={selectedConversation}
-            onSelect={setSelectedConversation}
-            searchTerm={searchTerm}
-            onSearch={setSearchTerm}
-          />
+          {renderConnectionPanel()}
+
+          {authStatus === "signed-in" && (
+            <div className="conversations-section">
+              <div className="section-header">
+                <h3>Chats</h3>
+                <span className="count">{conversations.length}</span>
+              </div>
+              <ConversationsSidebar
+                conversations={filteredConversations}
+                selected={selectedConversation}
+                onSelect={setSelectedConversation}
+                searchTerm={searchTerm}
+                onSearch={setSearchTerm}
+              />
+            </div>
+          )}
         </aside>
 
-        <main className="wa-chat">
-          <MessagesList
-            conversation={selectedConversation}
-            messages={messages}
-            onLoadMore={() => loadMessages(selectedConversation?.id, messagesPage + 1)}
-            hasMore={hasMoreMessages}
-            onReply={handleReply}
-            onForward={handleForward}
-            formatDate={formatDate}
-          />
+        {/* Main Chat Area */}
+        <main className="main-chat">
+          {authStatus !== "signed-in" ? (
+            <div className="empty-state">
+              <div className="empty-icon">💬</div>
+              <h2>Welcome to MessageFlow</h2>
+              <p>Connect your WhatsApp to start managing your conversations</p>
+            </div>
+          ) : !selectedConversation ? (
+            <div className="empty-state">
+              <div className="empty-icon">👈</div>
+              <h2>Select a conversation</h2>
+              <p>Choose a chat from the sidebar to view messages</p>
+            </div>
+          ) : (
+            <MessagesList
+              conversation={selectedConversation}
+              messages={messages}
+              onLoadMore={() => loadMessages(selectedConversation?.id, messagesPage + 1)}
+              hasMore={hasMoreMessages}
+              onReply={handleReply}
+              onForward={handleForward}
+              formatDate={formatDate}
+            />
+          )}
         </main>
 
-        <aside className="wa-ai">
-          <DailySummaryCard summary={dailySummary} stats={summary} />
-          <ImportantMessagesTab items={importantMessages} formatDate={formatDate} />
-          <ActionItemsTab
-            items={actionItems}
-            conversations={conversations}
-            onCreate={handleActionCreate}
-            onUpdate={handleActionUpdate}
-            onDelete={handleActionDelete}
-          />
-        </aside>
+        {/* Right Sidebar - Insights */}
+        {authStatus === "signed-in" && (
+          <aside className="sidebar-right">
+            <DailySummaryCard summary={dailySummary} stats={summary} />
+            <ImportantMessagesTab items={importantMessages} formatDate={formatDate} />
+            <ActionItemsTab
+              items={actionItems}
+              conversations={conversations}
+              onCreate={handleActionCreate}
+              onUpdate={handleActionUpdate}
+              onDelete={handleActionDelete}
+            />
+          </aside>
+        )}
       </div>
     </div>
   );
