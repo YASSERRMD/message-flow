@@ -16,6 +16,8 @@ Backend environment variables:
 - `JWT_SECRET` (required)
 - `PORT` (default: 8080)
 - `FRONTEND_ORIGIN` (default: http://localhost:5173)
+- `MASTER_KEY` (required for LLM provider encryption)
+- `REDIS_URL` (optional, enables batch analysis queue)
 
 Frontend environment variables:
 - `VITE_API_BASE` (default: http://localhost:8080/api/v1)
@@ -42,6 +44,18 @@ Row-level security (RLS) policies use `app.tenant_id` per request. The API sets 
 - `POST /api/v1/auth/login`
 - `POST /api/v1/auth/register`
 - `GET /api/v1/auth/me`
+- `POST /api/v1/llm/providers`
+- `GET /api/v1/llm/providers`
+- `GET /api/v1/llm/providers/:id`
+- `PATCH /api/v1/llm/providers/:id`
+- `DELETE /api/v1/llm/providers/:id`
+- `POST /api/v1/llm/providers/:id/test`
+- `POST /api/v1/messages/analyze`
+- `POST /api/v1/messages/batch-analyze`
+- `POST /api/v1/conversations/summarize`
+- `GET /api/v1/llm/usage`
+- `GET /api/v1/llm/costs`
+- `GET /api/v1/llm/health`
 
 Authentication:
 - Use `Authorization: Bearer <token>` on all `/api/v1/*` endpoints except login/register.
