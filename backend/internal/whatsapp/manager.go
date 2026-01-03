@@ -34,7 +34,7 @@ func NewManager(ctx context.Context, databaseURL string) (*Manager, error) {
 	if databaseURL == "" {
 		return nil, errors.New("database url required")
 	}
-	container, err := sqlstore.New(ctx, "postgres", databaseURL, nil)
+	container, err := sqlstore.New(ctx, "pgx", databaseURL, nil)
 	if err != nil {
 		return nil, err
 	}
