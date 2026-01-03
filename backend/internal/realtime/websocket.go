@@ -1,6 +1,7 @@
 package realtime
 
 import (
+	"encoding/json"
 	"net/http"
 	"time"
 
@@ -13,12 +14,12 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
-func ServeWS(w http.ResponseWriter, r *http.Request, hub *Hub, tenantID int64) {
+func ServeWS(w http.ResponseWriter, r *http.Request, hub *Hub, tenantID int64, userID int64) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		return
 	}
-	client := &Client{TenantID: tenantID, Send: make(chan []byte, 16)}
+	client := &Client{TenantID: tenantID, UserID: userID, Send: make(chan []byte, 16)}
 	hub.Register(client)
 
 	go writePump(conn, client, hub)
@@ -38,8 +39,17 @@ func readPump(conn *websocket.Conn, client *Client, hub *Hub) {
 	})
 
 	for {
-		if _, _, err := conn.ReadMessage(); err != nil {
+		_, payload, err := conn.ReadMessage()
+		if err != nil {
 			break
+		}
+		var message map[string]any
+		if err := json.Unmarshal(payload, &message); err != nil {
+			continue
+		}
+		if msgType, ok := message["type"].(string); ok && msgType == "typing" {
+			message["user_id"] = client.UserID
+			hub.Broadcast(client.TenantID, message)
 		}
 	}
 }

@@ -64,6 +64,15 @@ func (rt *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if strings.HasPrefix(path, "/api/v1/") && path != "/api/v1/auth/login" && path != "/api/v1/auth/register" {
+		required := handlers.RequiredRole(path, r.Method)
+		if required != "" && !rt.api.Authorize(r, required) {
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = w.Write([]byte("{\"error\":\"forbidden\"}"))
+			return
+		}
+	}
+
 	switch {
 	case path == "/api/v1/dashboard":
 		if r.Method == http.MethodGet {
@@ -83,7 +92,7 @@ func (rt *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				_, _ = w.Write([]byte("{\"error\":\"unauthorized\"}"))
 				return
 			}
-			realtime.ServeWS(w, r, rt.hub, user.TenantID)
+			realtime.ServeWS(w, r, rt.hub, user.TenantID, user.ID)
 			return
 		}
 	case path == "/api/v1/conversations":
@@ -137,7 +146,19 @@ func (rt *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	case strings.HasPrefix(path, "/api/v1/action-items/"):
 		idPart := strings.TrimPrefix(path, "/api/v1/action-items/")
-		if id, ok := handlers.ParseID(idPart); ok {
+		segments := strings.Split(idPart, "/")
+		if len(segments) == 2 && segments[1] == "comments" {
+			if id, ok := handlers.ParseID(segments[0]); ok {
+				switch r.Method {
+				case http.MethodGet:
+					rt.api.ListActionItemComments(w, r, id)
+					return
+				case http.MethodPost:
+					rt.api.CreateActionItemComment(w, r, id)
+					return
+				}
+			}
+		} else if id, ok := handlers.ParseID(idPart); ok {
 			switch r.Method {
 			case http.MethodPatch:
 				rt.api.UpdateActionItem(w, r, id)
@@ -265,6 +286,150 @@ func (rt *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			rt.api.GetRecommendations(w, r)
 			return
 		}
+	case path == "/api/v1/team/users":
+		switch r.Method {
+		case http.MethodPost:
+			rt.api.AddTeamUser(w, r)
+			return
+		case http.MethodGet:
+			rt.api.ListTeamUsers(w, r)
+			return
+		}
+	case strings.HasPrefix(path, "/api/v1/team/users/"):
+		segments := strings.Split(strings.TrimPrefix(path, "/api/v1/team/users/"), "/")
+		if len(segments) == 2 && segments[1] == "role" {
+			if r.Method == http.MethodPatch {
+				if id, ok := handlers.ParseID(segments[0]); ok {
+					rt.api.UpdateTeamUserRole(w, r, id)
+					return
+				}
+			}
+		} else if len(segments) == 1 {
+			if r.Method == http.MethodDelete {
+				if id, ok := handlers.ParseID(segments[0]); ok {
+					rt.api.RemoveTeamUser(w, r, id)
+					return
+				}
+			}
+		}
+	case path == "/api/v1/team/invitations":
+		if r.Method == http.MethodPost {
+			rt.api.SendInvitation(w, r)
+			return
+		}
+	case path == "/api/v1/team/activity":
+		if r.Method == http.MethodGet {
+			rt.api.GetTeamActivity(w, r)
+			return
+		}
+	case path == "/api/v1/workflows":
+		switch r.Method {
+		case http.MethodPost:
+			rt.api.CreateWorkflow(w, r)
+			return
+		case http.MethodGet:
+			rt.api.ListWorkflows(w, r)
+			return
+		}
+	case strings.HasPrefix(path, "/api/v1/workflows/"):
+		segments := strings.Split(strings.TrimPrefix(path, "/api/v1/workflows/"), "/")
+		if len(segments) >= 1 {
+			if id, ok := handlers.ParseID(segments[0]); ok {
+				if len(segments) == 2 && segments[1] == "test" {
+					if r.Method == http.MethodPost {
+						rt.api.TestWorkflow(w, r, id)
+						return
+					}
+				} else if len(segments) == 2 && segments[1] == "executions" {
+					if r.Method == http.MethodGet {
+						rt.api.GetWorkflowExecutions(w, r, id)
+						return
+					}
+				} else {
+					switch r.Method {
+					case http.MethodPatch:
+						rt.api.UpdateWorkflow(w, r, id)
+						return
+					case http.MethodDelete:
+						rt.api.DeleteWorkflow(w, r, id)
+						return
+					}
+				}
+			}
+		}
+	case strings.HasPrefix(path, "/api/v1/integrations/"):
+		segments := strings.Split(strings.TrimPrefix(path, "/api/v1/integrations/"), "/")
+		if len(segments) == 1 {
+			if r.Method == http.MethodPost {
+				rt.api.ConnectIntegration(w, r, segments[0])
+				return
+			}
+		}
+		if len(segments) == 2 && segments[1] == "config" {
+			if r.Method == http.MethodGet {
+				if id, ok := handlers.ParseID(segments[0]); ok {
+					rt.api.GetIntegrationConfig(w, r, id)
+					return
+				}
+			}
+		}
+		if len(segments) == 1 {
+			if r.Method == http.MethodDelete {
+				if id, ok := handlers.ParseID(segments[0]); ok {
+					rt.api.DisconnectIntegration(w, r, id)
+					return
+				}
+			}
+		}
+	case path == "/api/v1/integrations":
+		if r.Method == http.MethodGet {
+			rt.api.ListIntegrations(w, r)
+			return
+		}
+	case path == "/api/v1/webhooks/incoming":
+		if r.Method == http.MethodPost {
+			rt.api.ReceiveWebhook(w, r)
+			return
+		}
+	case path == "/api/v1/audit-logs":
+		if r.Method == http.MethodPost {
+			rt.api.GetAuditLogs(w, r)
+			return
+		}
+	case path == "/api/v1/notifications":
+		if r.Method == http.MethodPost {
+			rt.api.ListNotifications(w, r)
+			return
+		}
+	case strings.HasPrefix(path, "/api/v1/notifications/"):
+		if r.Method == http.MethodPatch {
+			if id, ok := handlers.ParseID(strings.TrimPrefix(path, "/api/v1/notifications/")); ok {
+				rt.api.MarkNotificationRead(w, r, id)
+				return
+			}
+		}
+	case path == "/api/v1/labels":
+		if r.Method == http.MethodPost {
+			rt.api.CreateLabel(w, r)
+			return
+		}
+	case strings.HasPrefix(path, "/api/v1/messages/") && strings.HasSuffix(path, "/labels"):
+		if r.Method == http.MethodPost {
+			segments := strings.Split(strings.TrimPrefix(path, "/api/v1/messages/"), "/")
+			if len(segments) == 2 && segments[1] == "labels" {
+				if id, ok := handlers.ParseID(segments[0]); ok {
+					rt.api.AddLabelToMessage(w, r, id)
+					return
+				}
+			}
+		}
+	case strings.HasPrefix(path, "/api/v1/comments/"):
+		if r.Method == http.MethodDelete {
+			if id, ok := handlers.ParseID(strings.TrimPrefix(path, "/api/v1/comments/")); ok {
+				rt.api.DeleteComment(w, r, id)
+				return
+			}
+		}
 	case path == "/api/v1/auth/login":
 		if r.Method == http.MethodPost {
 			rt.api.Login(w, r)
@@ -288,7 +453,7 @@ func (rt *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func requiresAuth(path string) bool {
 	switch path {
-	case "/api/v1/auth/login", "/api/v1/auth/register":
+	case "/api/v1/auth/login", "/api/v1/auth/register", "/api/v1/webhooks/incoming":
 		return false
 	default:
 		return strings.HasPrefix(path, "/api/v1/")
