@@ -166,6 +166,11 @@ func (rt *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			rt.api.ListProviders(w, r)
 			return
 		}
+	case path == "/api/v1/llm/providers/comparison":
+		if r.Method == http.MethodGet {
+			rt.api.GetProviderComparison(w, r)
+			return
+		}
 	case strings.HasPrefix(path, "/api/v1/llm/providers/"):
 		segments := strings.Split(strings.TrimPrefix(path, "/api/v1/llm/providers/"), "/")
 		if len(segments) >= 1 {
@@ -173,6 +178,11 @@ func (rt *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				if len(segments) == 2 && segments[1] == "test" {
 					if r.Method == http.MethodPost {
 						rt.api.TestProvider(w, r, id)
+						return
+					}
+				} else if len(segments) == 2 && segments[1] == "history" {
+					if r.Method == http.MethodGet {
+						rt.api.GetProviderHistory(w, r, id)
 						return
 					}
 				} else {
@@ -200,9 +210,59 @@ func (rt *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			rt.api.GetCosts(w, r)
 			return
 		}
+	case path == "/api/v1/llm/analytics/cost-breakdown":
+		if r.Method == http.MethodGet {
+			rt.api.GetCostBreakdown(w, r)
+			return
+		}
+	case path == "/api/v1/llm/analytics/usage-by-feature":
+		if r.Method == http.MethodGet {
+			rt.api.GetUsageByFeature(w, r)
+			return
+		}
 	case path == "/api/v1/llm/health":
 		if r.Method == http.MethodGet {
 			rt.api.GetHealthStatus(w, r)
+			return
+		}
+	case path == "/api/v1/llm/features":
+		if r.Method == http.MethodGet {
+			rt.api.GetFeatures(w, r)
+			return
+		}
+	case strings.HasPrefix(path, "/api/v1/llm/features/"):
+		segments := strings.Split(strings.TrimPrefix(path, "/api/v1/llm/features/"), "/")
+		if len(segments) >= 1 {
+			feature := segments[0]
+			if len(segments) == 2 && segments[1] == "assign-provider" {
+				if r.Method == http.MethodPost {
+					rt.api.AssignProviderToFeature(w, r, feature)
+					return
+				}
+			}
+			if len(segments) == 2 && segments[1] == "providers" {
+				if r.Method == http.MethodGet {
+					rt.api.GetFeatureProviders(w, r, feature)
+					return
+				}
+			}
+			if len(segments) == 3 && segments[1] == "providers" {
+				if r.Method == http.MethodDelete {
+					if id, ok := handlers.ParseID(segments[2]); ok {
+						rt.api.DeleteFeatureProvider(w, r, feature, id)
+						return
+					}
+				}
+			}
+		}
+	case path == "/api/v1/llm/bulk-test":
+		if r.Method == http.MethodPost {
+			rt.api.BulkTestProviders(w, r)
+			return
+		}
+	case path == "/api/v1/llm/recommendations":
+		if r.Method == http.MethodGet {
+			rt.api.GetRecommendations(w, r)
 			return
 		}
 	case path == "/api/v1/auth/login":

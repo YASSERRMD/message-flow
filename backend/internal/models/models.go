@@ -75,13 +75,17 @@ type LLMProvider struct {
 	ProviderName         string     `json:"provider_name"`
 	APIKey               string     `json:"api_key"`
 	ModelName            string     `json:"model_name"`
+	DisplayName          *string    `json:"display_name"`
 	Temperature          float64    `json:"temperature"`
 	MaxTokens            int        `json:"max_tokens"`
 	CostPer1KInput       float64    `json:"cost_per_1k_input"`
 	CostPer1KOutput      float64    `json:"cost_per_1k_output"`
 	MaxRequestsPerMinute int        `json:"max_requests_per_minute"`
+	MaxRequestsPerDay    int        `json:"max_requests_per_day"`
+	MonthlyBudget        *float64   `json:"monthly_budget"`
 	IsActive             bool       `json:"is_active"`
 	IsDefault            bool       `json:"is_default"`
+	IsFallback           bool       `json:"is_fallback"`
 	HealthStatus         string     `json:"health_status"`
 	LastHealthCheck      *time.Time `json:"last_health_check"`
 	CreatedAt            time.Time  `json:"created_at"`
@@ -115,6 +119,24 @@ type LLMProviderHealth struct {
 	ErrorMessage   *string   `json:"error_message"`
 	HTTPStatusCode *int      `json:"http_status_code"`
 	CreatedAt      time.Time `json:"created_at"`
+}
+
+type LLMProviderHistory struct {
+	ID         int64     `json:"id"`
+	TenantID   int64     `json:"tenant_id"`
+	ProviderID int64     `json:"provider_id"`
+	ChangeJSON string    `json:"change_json"`
+	ChangedBy  *int64    `json:"changed_by"`
+	CreatedAt  time.Time `json:"created_at"`
+}
+
+type LLMFeatureAssignment struct {
+	ID          int64     `json:"id"`
+	TenantID    int64     `json:"tenant_id"`
+	FeatureName string    `json:"feature_name"`
+	ProviderID  int64     `json:"provider_id"`
+	Priority    int       `json:"priority"`
+	CreatedAt   time.Time `json:"created_at"`
 }
 
 type DashboardSummary struct {
