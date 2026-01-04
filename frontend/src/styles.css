@@ -879,6 +879,23 @@ body {
   background: var(--accent-hover);
 }
 
+.attach-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  cursor: pointer;
+  color: var(--text-muted);
+  transition: all 0.2s;
+}
+
+.attach-btn:hover {
+  background: var(--bg-secondary);
+  color: var(--text);
+}
+
 /* Right Sidebar Panels */
 .panel {
   background: var(--bg-tertiary);
