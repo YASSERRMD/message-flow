@@ -143,8 +143,14 @@ func (s *Syncer) handleMessage(ctx context.Context, tenantID int64, client *what
 
 func (s *Syncer) UpsertConversation(ctx context.Context, tenantID int64, client *whatsmeow.Client, chatJID types.JID, contactName string, lastMessageAt time.Time) (int64, error) {
 	contactNumber := chatJID.User
-	if chatJID.User == "" {
-		contactNumber = chatJID.String()
+	if contactNumber == "" {
+		// Fallback, but strip domain if possible
+		str := chatJID.String()
+		if idx := strings.Index(str, "@"); idx != -1 {
+			contactNumber = str[:idx]
+		} else {
+			contactNumber = str
+		}
 	}
 
 	// Try to get better name from store if missing
@@ -167,44 +173,38 @@ func (s *Syncer) UpsertConversation(ctx context.Context, tenantID int64, client 
 	}
 
 	var id int64
-	var existingName string
-	var existingPic *string
 
+	// Use ON CONFLICT to handle concurrent updates and duplicates robustly
 	err := s.Store.WithTenantConn(ctx, tenantID, func(conn *pgxpool.Conn) error {
-		err := conn.QueryRow(ctx, `
-			SELECT id, contact_name, profile_picture_url
-			FROM conversations
-			WHERE tenant_id=$1 AND contact_number=$2`, tenantID, contactNumber).Scan(&id, &existingName, &existingPic)
+		// We use a transaction to ensure atomic upsert
+		tx, err := conn.Begin(ctx)
 		if err != nil {
-			if err == pgx.ErrNoRows {
-				name := contactName
-				if name == "" {
-					name = contactNumber
-				}
-				return conn.QueryRow(ctx, `
-					INSERT INTO conversations (tenant_id, contact_number, contact_name, last_message_at, profile_picture_url, created_at)
-					VALUES ($1, $2, $3, $4, $5, $6)
-					RETURNING id`, tenantID, contactNumber, name, lastMessageAt, profilePicURL, time.Now().UTC()).Scan(&id)
-			}
+			return err
+		}
+		defer tx.Rollback(ctx)
+
+		// 1. Try to INSERT
+		// We use ON CONFLICT DO UPDATE to handle race conditions
+		// Note: We need a unique constraint on (tenant_id, contact_number) for this to work
+		// which we added in migration 009.
+		var insertedID int64
+		err = tx.QueryRow(ctx, `
+			INSERT INTO conversations (tenant_id, contact_number, contact_name, last_message_at, profile_picture_url, created_at)
+			VALUES ($1, $2, $3, $4, $5, $6)
+			ON CONFLICT (tenant_id, contact_number) 
+			DO UPDATE SET 
+				last_message_at = GREATEST(conversations.last_message_at, EXCLUDED.last_message_at),
+				contact_name = COALESCE(NULLIF(EXCLUDED.contact_name, ''), conversations.contact_name),
+				profile_picture_url = COALESCE(NULLIF(EXCLUDED.profile_picture_url, ''), conversations.profile_picture_url)
+			RETURNING id`,
+			tenantID, contactNumber, contactName, lastMessageAt, profilePicURL, time.Now().UTC()).Scan(&insertedID)
+
+		if err != nil {
 			return err
 		}
 
-		name := existingName
-		if (name == "" || name == contactNumber) && contactName != "" && contactName != contactNumber {
-			name = contactName
-		}
-
-		// Always update profile pic if we got one, otherwise keep existing
-		pic := existingPic
-		if profilePicURL != "" {
-			pic = &profilePicURL
-		}
-
-		_, err = conn.Exec(ctx, `
-			UPDATE conversations
-			SET last_message_at=$1, contact_name=$2, profile_picture_url=$3
-			WHERE id=$4 AND tenant_id=$5`, lastMessageAt, name, pic, id, tenantID)
-		return err
+		id = insertedID
+		return tx.Commit(ctx)
 	})
 	return id, err
 }
