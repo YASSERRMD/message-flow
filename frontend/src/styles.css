@@ -586,6 +586,13 @@ body {
   margin: 0;
 }
 
+.wa-sender-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  margin-bottom: 4px;
+}
+
 .wa-message-meta {
   display: flex;
   gap: 8px;

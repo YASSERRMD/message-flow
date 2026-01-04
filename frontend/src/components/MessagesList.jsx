@@ -88,20 +88,26 @@ export default function MessagesList({
 
         {parsedMessages.map((message) => {
           const isOutbound = message.sender === "agent" || message.sender === "me";
+          // Detect group conversation (contact_number contains @g.us or starts with 12036)
+          const isGroup = conversation.contact_number?.includes("@g.us") ||
+            conversation.contact_number?.startsWith("12036");
+          // Extract sender display name
+          const senderDisplay = message.sender ? message.sender.split("@")[0] : "";
+          const showSender = !isOutbound && isGroup && senderDisplay;
+
           return (
             <div key={message.id} className={`wa-message ${isOutbound ? "is-outbound" : ""}`}>
               <div className="wa-message-bubble">
+                {showSender && (
+                  <div className="wa-sender-name">
+                    {senderDisplay}
+                  </div>
+                )}
                 <p className="wa-message-text">{message.content}</p>
                 <div className="wa-message-meta">
                   <span className="timestamp">
-                    {!isOutbound && message.sender && (
-                      <span className="sender-name" style={{ marginRight: '8px', fontWeight: 'bold', fontSize: '0.9em', color: 'var(--accent)' }}>
-                        {message.sender.split('@')[0]}
-                      </span>
-                    )}
                     {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </span>
-
                   {isOutbound && (
                     <span className="tick">✓</span>
                   )}
