@@ -449,6 +449,8 @@ export default function DashboardPage() {
               onReply={handleReply}
               onForward={handleForward}
               formatDate={formatDate}
+              token={token}
+              csrf={csrf}
             />
           )}
         </main>

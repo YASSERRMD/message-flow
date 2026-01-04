@@ -1,16 +1,23 @@
 import { useMemo, useState, useEffect, useRef } from "react";
 
+const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8081/api/v1";
+
 export default function MessagesList({
   conversation,
   messages,
   onLoadMore,
   hasMore,
   onReply,
-  formatDate
+  formatDate,
+  token,
+  csrf
 }) {
   const [reply, setReply] = useState("");
   const messagesEndRef = useRef(null);
   const listRef = useRef(null);
+  const [showSummary, setShowSummary] = useState(false);
+  const [summary, setSummary] = useState(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
 
   // Auto-scroll to bottom only when new messages arrive (and we were at the bottom)
   useEffect(() => {
@@ -18,6 +25,32 @@ export default function MessagesList({
       messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [messages.length, conversation?.id]);
+
+  const handleSummarize = async () => {
+    if (!conversation) return;
+    setSummaryLoading(true);
+    setShowSummary(true);
+    try {
+      const res = await fetch(`${API_BASE}/conversations/summarize`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+          "X-CSRF-Token": csrf
+        },
+        body: JSON.stringify({ conversation_id: conversation.id })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSummary(data);
+      } else {
+        setSummary({ error: "Failed to generate summary" });
+      }
+    } catch (err) {
+      setSummary({ error: "Network error" });
+    }
+    setSummaryLoading(false);
+  };
 
   const parsedMessages = useMemo(() => {
     // Sort messages by ID or timestamp to ensure chronological order
@@ -80,7 +113,77 @@ export default function MessagesList({
             {isGroup ? "Group" : conversation.contact_number}
           </div>
         </div>
+        <button className="summarize-btn" onClick={handleSummarize} title="Summarize conversation">
+          ✨ Summarize
+        </button>
       </header>
+
+      {/* Summary Modal */}
+      {showSummary && (
+        <div className="summary-modal-overlay" onClick={() => setShowSummary(false)}>
+          <div className="summary-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="summary-header">
+              <h3>✨ Conversation Summary</h3>
+              <button className="close-btn" onClick={() => setShowSummary(false)}>×</button>
+            </div>
+            <div className="summary-content">
+              {summaryLoading ? (
+                <div className="summary-loading">
+                  <div className="spinner"></div>
+                  <p>Generating summary with AI...</p>
+                </div>
+              ) : summary?.error ? (
+                <p className="error">{summary.error}</p>
+              ) : summary ? (
+                <>
+                  <div className="summary-section">
+                    <h4>📝 Summary</h4>
+                    <p>{summary.summary}</p>
+                  </div>
+                  {summary.key_points?.length > 0 && (
+                    <div className="summary-section">
+                      <h4>🔑 Key Points</h4>
+                      <ul>
+                        {summary.key_points.map((point, i) => (
+                          <li key={i}>{point}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {summary.action_items?.length > 0 && (
+                    <div className="summary-section">
+                      <h4>✅ Action Items</h4>
+                      <ul>
+                        {summary.action_items.map((item, i) => (
+                          <li key={i}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {summary.sentiment && (
+                    <div className="summary-section">
+                      <h4>💭 Sentiment</h4>
+                      <span className={`sentiment-badge ${summary.sentiment.toLowerCase()}`}>
+                        {summary.sentiment}
+                      </span>
+                    </div>
+                  )}
+                  {summary.topics?.length > 0 && (
+                    <div className="summary-section">
+                      <h4>🏷️ Topics</h4>
+                      <div className="topics-list">
+                        {summary.topics.map((topic, i) => (
+                          <span key={i} className="topic-tag">{topic}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="wa-message-list" ref={listRef}>
         {hasMore && (
