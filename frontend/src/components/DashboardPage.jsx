@@ -201,20 +201,26 @@ export default function DashboardPage() {
   const handleSendMessage = async () => {
     if (!selectedConversation || !replyText.trim()) return;
     try {
-      const res = await fetch(`${API_BASE}/messages/reply`, {
+      const res = await fetch(`${API_BASE}/conversations/${selectedConversation.id}/messages`, {
         method: "POST",
         headers: authHeaders,
-        body: JSON.stringify({
-          conversation_id: selectedConversation.id,
-          content: replyText
-        })
+        body: JSON.stringify({ content: replyText })
       });
+
       if (res.ok) {
         setReplyText("");
         loadMessages(selectedConversation.id, 1);
+        loadDashboard(); // Refresh sorting
       } else {
-        const err = await res.json();
-        alert("Failed to send message: " + (err.error || "Unknown error"));
+        // If error (e.g. 404 conversation not found due to duplicate cleanup), refresh list
+        if (res.status === 404 || res.status === 500) {
+          alert("Sync error: Conversation might be stale. Refreshing...");
+          loadDashboard();
+          setSelectedConversation(null);
+        } else {
+          const err = await res.json();
+          alert(`Failed: ${err.error}`);
+        }
       }
     } catch (err) {
       alert("Error sending message: " + err.message);
@@ -415,7 +421,16 @@ export default function DashboardPage() {
                   </div>
                 </div>
                 <div className="chat-actions">
-                  <button className="action-btn"><i className="fas fa-search"></i> Search</button>
+                  <button className="action-btn" onClick={async () => {
+                    const btn = document.getElementById('sync-btn');
+                    if (btn) btn.innerText = 'Syncing...';
+                    try {
+                      await fetch(`${API_BASE}/auth/whatsapp/sync-contacts`, { method: 'POST', headers: authHeaders });
+                      await loadDashboard();
+                    } catch (e) { }
+                    if (btn) btn.innerText = 'Sync Contacts';
+                  }} id="sync-btn"><i className="fas fa-sync"></i> Sync Contacts</button>
+                  {/* <button className="action-btn"><i className="fas fa-search"></i> Search</button> */}
                   <button className="action-btn primary" onClick={handleSummarize}><i className="fas fa-sparkles"></i> Summarize</button>
                 </div>
               </div>

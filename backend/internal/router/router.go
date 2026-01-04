@@ -450,6 +450,11 @@ func (rt *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			rt.api.WhatsAppAuthStatus(w, r)
 			return
 		}
+	case path == "/api/v1/auth/whatsapp/sync-contacts":
+		if r.Method == http.MethodPost {
+			rt.api.SyncContacts(w, r)
+			return
+		}
 	case path == "/api/v1/auth/logout":
 		if r.Method == http.MethodPost {
 			rt.api.LogoutWhatsApp(w, r)

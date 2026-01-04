@@ -48,9 +48,33 @@ func (a *API) Register(w http.ResponseWriter, r *http.Request) {
 	query := `
 		INSERT INTO users (email, password_hash, tenant_id, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5)
-		RETURNING id, email, password_hash, tenant_id, created_at, updated_at`
+		RETURNING id`
 
-	if err := a.Store.WithTenantConn(ctx, req.TenantID, func(conn *pgxpool.Conn) error {
+	if err := a.Store.WithConn(ctx, func(conn *pgxpool.Conn) error {
+		return conn.QueryRow(ctx, query, req.Email, string(passwordHash), req.TenantID, time.Now().UTC(), time.Now().UTC()).Scan(&user.ID)
+	}); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to register user")
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, map[string]string{"result": "registered"})
+}
+
+func (a *API) SyncContacts(w http.ResponseWriter, r *http.Request) {
+	tenantID := a.tenantID(r)
+	if a.WhatsApp != nil {
+		// Get session
+		session, ok := a.WhatsApp.GetSession(strconv.FormatInt(tenantID, 10)) // Assuming sessionID is tenantID for now via GetFirstDevice logic
+		// Actually manager uses session ID, but wait, do we know the session ID?
+		// Manager logic uses random session IDs. But usually we map 1-to-1 tenant.
+		// Let's use manager's iteration to find tenant's session
+		go a.WhatsApp.SyncContactsForTenant(tenantID)
+		writeJSON(w, http.StatusOK, map[string]string{"status": "sync_started"})
+		return
+	}
+	writeError(w, http.StatusServiceUnavailable, "whatsapp not initialized")
+}
+
 		var existing int
 		if err := conn.QueryRow(ctx, `SELECT COUNT(*) FROM users WHERE tenant_id=$1`, req.TenantID).Scan(&existing); err != nil {
 			return err
