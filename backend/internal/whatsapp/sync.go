@@ -102,18 +102,18 @@ func (s *Syncer) handleMessage(ctx context.Context, tenantID int64, client *what
 		content = "[" + mediaInfo.Type + "]"
 	}
 
-	// contactNumber removed as it is derived inside upsertConversation
 	if contactName == "" {
 		contactName = strings.TrimSpace(info.PushName)
 	}
 
-	conversationID, err := s.upsertConversation(ctx, tenantID, client, chatJID, contactName, info.Timestamp)
+	// Ensure conversation exists and get ID
+	conversationID, err := s.UpsertConversation(ctx, tenantID, client, chatJID, contactName, info.Timestamp)
 	if err != nil {
-		log.Printf("[Syncer] upsertConversation error: %v", err)
+		log.Printf("[Syncer] Failed to upsert conversation: %v", err)
 		return
 	}
 	if conversationID == 0 {
-		log.Printf("[Syncer] upsertConversation returned 0 ID")
+		log.Printf("[Syncer] UpsertConversation returned 0 ID")
 		return
 	}
 
@@ -141,7 +141,7 @@ func (s *Syncer) handleMessage(ctx context.Context, tenantID int64, client *what
 	}
 }
 
-func (s *Syncer) upsertConversation(ctx context.Context, tenantID int64, client *whatsmeow.Client, chatJID types.JID, contactName string, lastMessageAt time.Time) (int64, error) {
+func (s *Syncer) UpsertConversation(ctx context.Context, tenantID int64, client *whatsmeow.Client, chatJID types.JID, contactName string, lastMessageAt time.Time) (int64, error) {
 	contactNumber := chatJID.User
 	if chatJID.User == "" {
 		contactNumber = chatJID.String()

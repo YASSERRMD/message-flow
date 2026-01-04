@@ -249,9 +249,53 @@ func (m *Manager) consumeQR(session *Session, qrChan <-chan whatsmeow.QRChannelI
 	m.mu.Lock()
 	if client.Store.ID != nil {
 		session.Status = "connected"
-		m.log.Infof("Connection established, JID: %s", client.Store.ID.String())
+		m.log.Infof("Session connected via existing store or QR success")
+		go m.syncContacts(session)
+	} else {
+		if session.Status == "pending" {
+			session.Status = "timeout"
+		}
 	}
 	m.mu.Unlock()
+}
+
+func (m *Manager) syncContacts(session *Session) {
+	if m.syncer == nil {
+		return
+	}
+	// Small delay to let connection stabilize
+	time.Sleep(5 * time.Second)
+
+	m.log.Infof("Starting background contact sync...")
+	ctx := context.Background()
+	contacts, err := session.Client.Store.Contacts.GetAllContacts(ctx)
+	if err != nil {
+		m.log.Errorf("Failed to get contacts: %v", err)
+		return
+	}
+
+	count := 0
+	for jid, info := range contacts {
+		if jid.Server != "s.whatsapp.net" {
+			continue
+		}
+
+		name := info.PushName
+		if name == "" {
+			name = info.FullName
+		}
+		if name == "" {
+			name = info.FirstName
+		}
+
+		// Trigger upsert which fetches profile pic
+		if _, err := m.syncer.UpsertConversation(ctx, session.TenantID, session.Client, jid, name, time.Time{}); err == nil {
+			count++
+		}
+		// Rate limit slightly
+		time.Sleep(100 * time.Millisecond)
+	}
+	m.log.Infof("Synced %d contacts", count)
 }
 
 func (m *Manager) DisconnectSession(tenantID int64) error {
