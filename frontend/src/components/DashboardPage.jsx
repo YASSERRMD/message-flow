@@ -25,14 +25,33 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
   const [messagesPage, setMessagesPage] = useState(1);
   const [hasMoreMessages, setHasMoreMessages] = useState(true);
   const [selectedConversation, setSelectedConversation] = useState(null);
-  const [selectedConversation, setSelectedConversation] = useState(null);
   const [authStatus, setAuthStatus] = useState("signed-out");
   const [qrSession, setQrSession] = useState("");
   const [qrImage, setQrImage] = useState("");
   const [qrStatus, setQrStatus] = useState("idle");
   const [qrError, setQrError] = useState("");
   const [filter, setFilter] = useState("all");
-  const [replyText, setReplyText] = useState("");
+  // ... state declarations ...
+
+  // ... (lines 38-300 skipped)
+
+  // Not connected - show QR panel
+  if (authStatus !== "signed-in") {
+    return (
+      <div className="connect-screen">
+        <div className="connect-card">
+          {/* ... content ... */}
+          <div className="qr-box">
+            {/* ... qr content ... */}
+          </div>
+          {qrError && <div className="error-msg">{qrError}</div>}
+          <button className="connect-btn" onClick={startWhatsAppConnect} disabled={qrStatus === "loading"}>
+            {qrStatus === "loading" ? "Generating..." : "Generate QR Code"}
+          </button>
+        </div>
+      </div>
+    );
+  } const [replyText, setReplyText] = useState("");
   const [showSummary, setShowSummary] = useState(false);
   const [summaryData, setSummaryData] = useState(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
@@ -586,15 +605,67 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
                         {summaryData.topics.map((topic, i) => <span key={i} className="topic-tag">{topic}</span>)}
                       </div>
                     </div>
+      {/* Summary Modal */}
+                  {showSummary && (
+                    <div className="summary-modal-overlay" onClick={() => setShowSummary(false)}>
+                      <div className="summary-modal" onClick={(e) => e.stopPropagation()}>
+                        <div className="summary-header">
+                          <h3>✨ Conversation Summary</h3>
+                          <button className="close-btn" onClick={() => setShowSummary(false)}>×</button>
+                        </div>
+                        <div className="summary-content">
+                          {summaryLoading ? (
+                            <div className="summary-loading">
+                              <div className="spinner"></div>
+                              <p>Analyzing conversation...</p>
+                            </div>
+                          ) : summaryData ? (
+                            <>
+                              <div className="summary-section">
+                                <h4>Summary</h4>
+                                <p>{summaryData.summary || "No summary available"}</p>
+                              </div>
+                              {/* ... other summary sections ... */}
+                              {summaryData.key_points?.length > 0 && (
+                                <div className="summary-section">
+                                  <h4>Key Points</h4>
+                                  <ul>
+                                    {summaryData.key_points.map((point, i) => <li key={i}>{point}</li>)}
+                                  </ul>
+                                </div>
+                              )}
+                              {summaryData.action_items?.length > 0 && (
+                                <div className="summary-section">
+                                  <h4>Action Items</h4>
+                                  <ul>
+                                    {summaryData.action_items.map((item, i) => <li key={i}>{item}</li>)}
+                                  </ul>
+                                </div>
+                              )}
+                              {summaryData.sentiment && (
+                                <div className="summary-section">
+                                  <h4>Sentiment</h4>
+                                  <span className={`sentiment-badge ${summaryData.sentiment.toLowerCase()}`}>
+                                    {summaryData.sentiment}
+                                  </span>
+                                </div>
+                              )}
+                              {summaryData.topics?.length > 0 && (
+                                <div className="summary-section">
+                                  <h4>Topics</h4>
+                                  <div className="topics-list">
+                                    {summaryData.topics.map((topic, i) => <span key={i} className="topic-tag">{topic}</span>)}
+                                  </div>
+                                </div>
+                              )}
+                            </>
+                          ) : (
+                            <p>No summary data</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
                   )}
                 </>
-              ) : (
-                <p>No summary data</p>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-    </div >
-  );
+              );
 }
