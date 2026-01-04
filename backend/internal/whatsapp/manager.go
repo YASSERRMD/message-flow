@@ -3,13 +3,16 @@ package whatsapp
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"go.mau.fi/whatsmeow"
+	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/store/sqlstore"
+	"go.mau.fi/whatsmeow/types"
 	waLog "go.mau.fi/whatsmeow/util/log"
 )
 
@@ -169,6 +172,42 @@ func (m *Manager) GetSession(sessionID string) (*Session, bool) {
 	}
 	copy := *session
 	return &copy, true
+}
+
+// SendMessage sends a text message to a specific JID using the tenant's active session
+func (m *Manager) SendMessage(ctx context.Context, tenantID int64, recipientJID string, content string) error {
+	m.mu.RLock()
+	var client *whatsmeow.Client
+	for _, session := range m.sessions {
+		if session.TenantID == tenantID && session.Status == "connected" {
+			client = session.Client
+			break
+		}
+	}
+	m.mu.RUnlock()
+
+	if client == nil {
+		return errors.New("no connected whatsapp session found for tenant")
+	}
+
+	// Ensure JID has a domain
+	if !strings.Contains(recipientJID, "@") {
+		if strings.HasPrefix(recipientJID, "12036") {
+			recipientJID = recipientJID + "@g.us"
+		} else {
+			recipientJID = recipientJID + "@s.whatsapp.net"
+		}
+	}
+
+	jid, err := types.ParseJID(recipientJID)
+	if err != nil {
+		return err
+	}
+
+	_, err = client.SendMessage(ctx, jid, &waE2E.Message{
+		Conversation: &content,
+	})
+	return err
 }
 
 func (m *Manager) consumeQR(session *Session, qrChan <-chan whatsmeow.QRChannelItem, client *whatsmeow.Client) {

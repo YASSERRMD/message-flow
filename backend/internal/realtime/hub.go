@@ -42,22 +42,26 @@ func (h *Hub) Unregister(client *Client) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if clients, ok := h.clients[client.TenantID]; ok {
-		delete(clients, client)
+		if _, ok := clients[client]; ok {
+			delete(clients, client)
+			close(client.Send) // Close channel only when removing from map
+
+			// Update presence only if client was actually removed
+			if presence, ok := h.presence[client.TenantID]; ok {
+				if count, ok := presence[client.UserID]; ok {
+					if count <= 1 {
+						delete(presence, client.UserID)
+					} else {
+						presence[client.UserID] = count - 1
+					}
+				}
+				h.broadcastPresenceLocked(client.TenantID)
+			}
+		}
 		if len(clients) == 0 {
 			delete(h.clients, client.TenantID)
 		}
 	}
-	if presence, ok := h.presence[client.TenantID]; ok {
-		if count, ok := presence[client.UserID]; ok {
-			if count <= 1 {
-				delete(presence, client.UserID)
-			} else {
-				presence[client.UserID] = count - 1
-			}
-		}
-		h.broadcastPresenceLocked(client.TenantID)
-	}
-	close(client.Send)
 }
 
 func (h *Hub) Broadcast(tenantID int64, payload any) {

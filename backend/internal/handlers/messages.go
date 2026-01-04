@@ -45,6 +45,26 @@ func (a *API) ReplyMessage(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	var message models.Message
+
+	// Get recipient number from conversation
+	var contactNumber string
+	if err := a.Store.WithTenantConn(ctx, tenantID, func(conn *pgxpool.Conn) error {
+		return conn.QueryRow(ctx, "SELECT contact_number FROM conversations WHERE id=$1 AND tenant_id=$2", req.ConversationID, tenantID).Scan(&contactNumber)
+	}); err != nil {
+		writeError(w, http.StatusNotFound, "conversation not found")
+		return
+	}
+
+	// Send via WhatsApp
+	if a.WhatsApp != nil {
+		if err := a.WhatsApp.SendMessage(ctx, tenantID, contactNumber, req.Content); err != nil {
+			// Log error but continue to save (or should we fail? usually better to fail if send fails)
+			// But for now, let's return error so user knows
+			writeError(w, http.StatusInternalServerError, "failed to send whatsapp message: "+err.Error())
+			return
+		}
+	}
+
 	query := `
 		INSERT INTO messages (tenant_id, conversation_id, sender, content, timestamp, metadata_json, created_at)
 		VALUES ($1, $2, $3, $4, $5, NULL, $6)
@@ -55,7 +75,7 @@ func (a *API) ReplyMessage(w http.ResponseWriter, r *http.Request) {
 			&message.ID, &message.TenantID, &message.ConversationID, &message.Sender, &message.Content, &message.Timestamp, &message.MetadataJSON, &message.CreatedAt,
 		)
 	}); err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to send reply")
+		writeError(w, http.StatusInternalServerError, "failed to save message")
 		return
 	}
 

@@ -253,6 +253,9 @@ export default function DashboardPage() {
     });
     if (res.ok) {
       await loadMessages(conversationId, 1);
+    } else {
+      const err = await res.json();
+      alert("Failed to send message: " + (err.error || "Unknown error"));
     }
   };
 

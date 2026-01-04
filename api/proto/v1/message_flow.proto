@@ -1,0 +1,90 @@
+syntax = "proto3";
+
+package messageflow.v1;
+
+option go_package = "message-flow/backend/pkg/proto/v1;messageflowv1";
+
+import "google/protobuf/timestamp.proto";
+
+service ChatService {
+  // Lists conversations with pagination
+  rpc ListConversations(ListConversationsRequest) returns (ListConversationsResponse);
+  
+  // Gets messages for a specific conversation
+  rpc GetMessages(GetMessagesRequest) returns (GetMessagesResponse);
+  
+  // Sends a message to a conversation
+  rpc SendMessage(SendMessageRequest) returns (SendMessageResponse);
+  
+  // Streams new messages and events in real-time
+  rpc StreamEvents(StreamEventsRequest) returns (stream Event);
+}
+
+message Conversation {
+  int64 id = 1;
+  int64 tenant_id = 2;
+  string contact_number = 3;
+  string contact_name = 4;
+  google.protobuf.Timestamp last_message_at = 5;
+  int32 unread_count = 6;
+}
+
+message Message {
+  int64 id = 1;
+  int64 tenant_id = 2;
+  int64 conversation_id = 3;
+  string sender = 4; // "agent", "me", or contact JID
+  string content = 5;
+  google.protobuf.Timestamp timestamp = 6;
+  string metadata_json = 7;
+  bool is_outbound = 8;
+}
+
+message ListConversationsRequest {
+  int32 page = 1;
+  int32 limit = 2;
+}
+
+message ListConversationsResponse {
+  repeated Conversation conversations = 1;
+  int32 total_count = 2;
+  int32 page = 3;
+}
+
+message GetMessagesRequest {
+  int64 conversation_id = 1;
+  int32 page = 2;
+  int32 limit = 3;
+}
+
+message GetMessagesResponse {
+  repeated Message messages = 1;
+  int32 total_count = 2;
+  int32 page = 3;
+}
+
+message SendMessageRequest {
+  int64 conversation_id = 1;
+  string content = 2;
+}
+
+message SendMessageResponse {
+  Message message = 1;
+}
+
+message StreamEventsRequest {
+  // Empty for now, authenticates via metadata
+}
+
+message Event {
+  oneof type {
+    Message message_received = 1;
+    Message message_sent = 2;
+    Conversation conversation_updated = 3;
+    PresenceUpdate presence = 4;
+  }
+}
+
+message PresenceUpdate {
+  repeated int64 online_user_ids = 1;
+}

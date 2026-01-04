@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 
 export default function MessagesList({
   conversation,
@@ -6,15 +6,24 @@ export default function MessagesList({
   onLoadMore,
   hasMore,
   onReply,
-  onForward,
   formatDate
 }) {
   const [reply, setReply] = useState("");
-  const [forwardMessageId, setForwardMessageId] = useState("");
-  const [targetConversation, setTargetConversation] = useState("");
+  const messagesEndRef = useRef(null);
+  const listRef = useRef(null);
+
+  // Auto-scroll to bottom only when new messages arrive (and we were at the bottom)
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages.length, conversation?.id]);
 
   const parsedMessages = useMemo(() => {
-    return messages.map((message) => {
+    // Sort messages by ID or timestamp to ensure chronological order
+    const sorted = [...messages].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+    return sorted.map((message) => {
       let analysis = null;
       if (message.metadata_json) {
         try {
@@ -28,13 +37,6 @@ export default function MessagesList({
     });
   }, [messages]);
 
-  const handleScroll = (event) => {
-    const { scrollTop, scrollHeight, clientHeight } = event.currentTarget;
-    if (scrollTop + clientHeight >= scrollHeight - 32 && hasMore) {
-      onLoadMore();
-    }
-  };
-
   const handleReply = (event) => {
     event.preventDefault();
     if (!conversation || !reply.trim()) return;
@@ -42,31 +44,48 @@ export default function MessagesList({
     setReply("");
   };
 
-  const handleForward = (event) => {
-    event.preventDefault();
-    if (!forwardMessageId || !targetConversation) return;
-    onForward({
-      messageId: Number(forwardMessageId),
-      targetConversationId: Number(targetConversation)
-    });
-    setForwardMessageId("");
-    setTargetConversation("");
-  };
+  const handleScroll = (e) => {
+    // In strict reverse column, scrollHeight - scrollTop = clientHeight means top
+    // But since we are rendering normally, scrollTop = 0 means top.
+    if (e.currentTarget.scrollTop === 0 && hasMore) {
+      onLoadMore();
+    }
+  }
+
+  if (!conversation) {
+    return (
+      <section className="wa-chat-panel empty">
+        <div className="empty-state-content">
+          <div className="icon">💬</div>
+          <h3>Select a conversation</h3>
+          <p>Choose a chat from the sidebar to start messaging</p>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="wa-chat-panel">
       <header className="wa-chat-header">
-        <div>
-          <h3>{conversation ? conversation.contact_name || conversation.contact_number : "Select a chat"}</h3>
+        <div className="header-info">
+          <h3>{conversation.contact_name || conversation.contact_number}</h3>
           <div className="wa-chat-sub">
-            {conversation ? conversation.contact_number : "Choose a conversation to load messages"}
+            {conversation.contact_number}
           </div>
         </div>
-        <div className="wa-chat-sub">AI insights active</div>
       </header>
-      <div className="wa-message-list" onScroll={handleScroll}>
-        {!conversation && <p className="empty">Pick a conversation to load messages.</p>}
-        {conversation && messages.length === 0 && <p className="empty">No messages yet.</p>}
+
+      <div className="wa-message-list" ref={listRef}>
+        {hasMore && (
+          <div className="load-more-trigger" onClick={onLoadMore}>
+            Load older messages
+          </div>
+        )}
+
+        {parsedMessages.length === 0 && (
+          <p className="empty-text">No messages yet. Send one to start!</p>
+        )}
+
         {parsedMessages.map((message) => {
           const isOutbound = message.sender === "agent" || message.sender === "me";
           return (
@@ -74,47 +93,45 @@ export default function MessagesList({
               <div className="wa-message-bubble">
                 <p className="wa-message-text">{message.content}</p>
                 <div className="wa-message-meta">
-                  <span>{formatDate(message.timestamp)}</span>
-                  <button type="button" className="ghost" onClick={() => setForwardMessageId(message.id)}>
-                    Forward
-                  </button>
+                  <span className="timestamp">
+                    {!isOutbound && message.sender && (
+                      <span className="sender-name" style={{ marginRight: '8px', fontWeight: 'bold', fontSize: '0.9em', color: 'var(--accent)' }}>
+                        {message.sender.split('@')[0]}
+                      </span>
+                    )}
+                    {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+
+                  {isOutbound && (
+                    <span className="tick">✓</span>
+                  )}
                 </div>
                 {message.analysis?.is_important && (
-                  <div className="wa-message-tags">
-                    <span className="wa-tag">{message.analysis.priority || "important"}</span>
-                    {message.analysis.sentiment && <span className="wa-tag">{message.analysis.sentiment}</span>}
+                  <div className="wa-message-importance" title="Marked as important by AI">
+                    ⭐️
                   </div>
                 )}
               </div>
             </div>
           );
         })}
-        {hasMore && conversation && <p className="empty">Loading more…</p>}
+        <div ref={messagesEndRef} />
       </div>
+
       <div className="wa-composer">
         <form onSubmit={handleReply}>
           <input
             type="text"
-            placeholder="Type a reply"
+            placeholder="Type a message..."
             value={reply}
             onChange={(event) => setReply(event.target.value)}
+            disabled={!conversation}
           />
-          <button className="primary" type="submit">Send</button>
-        </form>
-        <form onSubmit={handleForward} className="forward-form">
-          <input
-            type="number"
-            placeholder="Message ID"
-            value={forwardMessageId}
-            onChange={(event) => setForwardMessageId(event.target.value)}
-          />
-          <input
-            type="number"
-            placeholder="Target conversation ID"
-            value={targetConversation}
-            onChange={(event) => setTargetConversation(event.target.value)}
-          />
-          <button className="ghost" type="submit">Forward</button>
+          <button className="primary" type="submit" disabled={!conversation || !reply.trim()}>
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+              <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path>
+            </svg>
+          </button>
         </form>
       </div>
     </section>
