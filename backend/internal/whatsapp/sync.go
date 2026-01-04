@@ -90,8 +90,16 @@ func (s *Syncer) handleMessage(ctx context.Context, tenantID int64, client *what
 		return
 	}
 	content := extractText(msg)
-	if content == "" || info.ID == "" {
+	mediaInfo := extractMediaInfo(msg)
+
+	// Allow message if either has text content or has media
+	if (content == "" && mediaInfo == nil) || info.ID == "" {
 		return
+	}
+
+	// For media-only messages, set a placeholder content
+	if content == "" && mediaInfo != nil {
+		content = "[" + mediaInfo.Type + "]"
 	}
 
 	contactNumber := chatJID.String()
@@ -112,7 +120,7 @@ func (s *Syncer) handleMessage(ctx context.Context, tenantID int64, client *what
 		return
 	}
 
-	messageID, inserted, err := s.insertMessage(ctx, tenantID, conversationID, info, content, chatJID)
+	messageID, inserted, err := s.insertMessage(ctx, tenantID, conversationID, info, content, chatJID, mediaInfo)
 	if err != nil || !inserted {
 		return
 	}
@@ -170,7 +178,7 @@ func (s *Syncer) upsertConversation(ctx context.Context, tenantID int64, contact
 	return id, err
 }
 
-func (s *Syncer) insertMessage(ctx context.Context, tenantID, conversationID int64, info types.MessageInfo, content string, chatJID types.JID) (int64, bool, error) {
+func (s *Syncer) insertMessage(ctx context.Context, tenantID, conversationID int64, info types.MessageInfo, content string, chatJID types.JID, mediaInfo *MediaInfo) (int64, bool, error) {
 	var id int64
 	inserted := false
 	err := s.Store.WithTenantConn(ctx, tenantID, func(conn *pgxpool.Conn) error {
@@ -197,6 +205,10 @@ func (s *Syncer) insertMessage(ctx context.Context, tenantID, conversationID int
 			"whatsapp_id": info.ID,
 			"sender":      sender,
 			"chat":        chatJID.String(),
+		}
+		// Include media info if present
+		if mediaInfo != nil {
+			meta["media"] = mediaInfo
 		}
 		metaBytes, _ := json.Marshal(meta)
 		now := time.Now().UTC()
@@ -243,4 +255,74 @@ func extractText(msg *waE2E.Message) string {
 		return poll.GetName()
 	}
 	return ""
+}
+
+// MediaInfo holds extracted media metadata
+type MediaInfo struct {
+	Type     string `json:"media_type,omitempty"` // image, video, audio, document, sticker
+	MimeType string `json:"mime_type,omitempty"`
+	FileName string `json:"file_name,omitempty"`
+	Caption  string `json:"caption,omitempty"`
+	FileSize uint64 `json:"file_size,omitempty"`
+	Seconds  uint32 `json:"duration_seconds,omitempty"`
+	HasMedia bool   `json:"has_media"`
+}
+
+func extractMediaInfo(msg *waE2E.Message) *MediaInfo {
+	if msg == nil {
+		return nil
+	}
+
+	if img := msg.GetImageMessage(); img != nil {
+		return &MediaInfo{
+			Type:     "image",
+			MimeType: img.GetMimetype(),
+			Caption:  img.GetCaption(),
+			FileSize: img.GetFileLength(),
+			HasMedia: true,
+		}
+	}
+
+	if vid := msg.GetVideoMessage(); vid != nil {
+		return &MediaInfo{
+			Type:     "video",
+			MimeType: vid.GetMimetype(),
+			Caption:  vid.GetCaption(),
+			FileSize: vid.GetFileLength(),
+			Seconds:  vid.GetSeconds(),
+			HasMedia: true,
+		}
+	}
+
+	if audio := msg.GetAudioMessage(); audio != nil {
+		return &MediaInfo{
+			Type:     "audio",
+			MimeType: audio.GetMimetype(),
+			FileSize: audio.GetFileLength(),
+			Seconds:  audio.GetSeconds(),
+			HasMedia: true,
+		}
+	}
+
+	if doc := msg.GetDocumentMessage(); doc != nil {
+		return &MediaInfo{
+			Type:     "document",
+			MimeType: doc.GetMimetype(),
+			FileName: doc.GetFileName(),
+			Caption:  doc.GetCaption(),
+			FileSize: doc.GetFileLength(),
+			HasMedia: true,
+		}
+	}
+
+	if sticker := msg.GetStickerMessage(); sticker != nil {
+		return &MediaInfo{
+			Type:     "sticker",
+			MimeType: sticker.GetMimetype(),
+			FileSize: sticker.GetFileLength(),
+			HasMedia: true,
+		}
+	}
+
+	return nil
 }
