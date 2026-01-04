@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import useStoredState from "../../hooks/useStoredState.js";
 import ProvidersListView from "./ProvidersListView.jsx";
 import ProviderDetailsPanel from "./ProviderDetailsPanel.jsx";
 import AddProviderModal from "./AddProviderModal.jsx";
@@ -21,6 +22,7 @@ const providerModels = {
 };
 
 export default function LLMProviderDashboard({ token, csrf }) {
+  const [theme] = useStoredState("mf-theme", "light");
   const [providers, setProviders] = useState([]);
   const [comparison, setComparison] = useState([]);
   const [health, setHealth] = useState([]);
