@@ -276,6 +276,9 @@ export default function LLMProviderDashboard({ token, csrf }) {
             </div>
           </div>
           <div className="chat-actions">
+            <button className="action-btn" onClick={() => onNavigate && onNavigate("operations")}>
+              <i className="fas fa-arrow-left"></i> Back to Chat
+            </button>
             <button className="action-btn primary" onClick={() => setShowAdd(true)}>
               <i className="fas fa-plus"></i> Add Provider
             </button>

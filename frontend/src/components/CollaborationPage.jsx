@@ -64,13 +64,18 @@ export default function CollaborationPage({ token, csrf, role }) {
       <div className="chat-area">
         <div className="chat-header">
           <div className="chat-user-info">
-            <div className="chat-avatar" style={{ background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)', color: 'white' }}>
+            <div className="chat-avatar" style={{ background: '#2563eb', color: 'white' }}>
               <i className="fas fa-users"></i>
             </div>
             <div className="chat-details">
-              <h3>Collaboration Center</h3>
-              <p>Manage projects, tasks, and team settings</p>
+              <h3>Team Collaboration</h3>
+              <p>Manage members, assign roles, and track tasks</p>
             </div>
+          </div>
+          <div className="chat-actions">
+            <button className="action-btn" onClick={() => onNavigate && onNavigate("operations")}>
+              <i className="fas fa-arrow-left"></i> Back to Chat
+            </button>
           </div>
         </div>
 

@@ -59,11 +59,11 @@ export default function App() {
       </nav>
       {view === "operations" && <DashboardPage onNavigate={setView} />}
       {view === "collab" && (
-        <CollaborationPage token={token} csrf={csrf} role={role} />
+        <CollaborationPage token={token} csrf={csrf} role={role} onNavigate={setView} />
       )}
       {view === "llm" && (
         <ErrorBoundary>
-          <LLMProviderDashboard token={token} csrf={csrf} />
+          <LLMProviderDashboard token={token} csrf={csrf} onNavigate={setView} />
         </ErrorBoundary>
       )}
     </div>
