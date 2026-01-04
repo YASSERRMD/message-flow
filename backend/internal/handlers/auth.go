@@ -50,7 +50,7 @@ func (a *API) Register(w http.ResponseWriter, r *http.Request) {
 		VALUES ($1, $2, $3, $4, $5)
 		RETURNING id, email, password_hash, tenant_id, created_at, updated_at`
 
-	if err := a.Store.WithConn(ctx, func(conn *pgxpool.Conn) error {
+	if err := a.Store.WithTenantConn(ctx, req.TenantID, func(conn *pgxpool.Conn) error {
 		return conn.QueryRow(ctx, query, req.Email, string(passwordHash), req.TenantID, time.Now().UTC(), time.Now().UTC()).Scan(
 			&user.ID, &user.Email, &user.PasswordHash, &user.TenantID, &user.CreatedAt, &user.UpdatedAt,
 		)
