@@ -440,7 +440,10 @@ export default function DashboardPage() {
                   <div className="message-date">Today</div>
                   {messages.map((msg) => {
                     const isGroup = selectedConversation?.whatsapp_jid?.includes("@g.us");
-                    const senderName = msg.sender_name || msg.sender_id?.split("@")[0] || "Unknown";
+                    const senderName = msg.sender_name || (msg.sender_id || "").split("@")[0] || "Unknown";
+                    // Only show ticks for outbound messages
+                    // In a real app we'd check msg.status (pending, sent, delivered, read) to color the ticks
+                    // For now, we assume everything is "sent/delivered" (double check)
                     return (
                       <div key={msg.id} className={`message ${msg.is_outbound ? "outbound" : ""}`}>
                         <div className="message-bubble">
@@ -448,7 +451,14 @@ export default function DashboardPage() {
                             <div className="message-sender">{senderName}</div>
                           )}
                           <div className="message-text">{msg.content}</div>
-                          <div className="message-time">{formatTime(msg.created_at)}</div>
+                          <div className="message-meta">
+                            <span className="message-time">{formatTime(msg.timestamp || msg.created_at)}</span>
+                            {msg.is_outbound && (
+                              <span className="message-status">
+                                <i className="fas fa-check-double" style={{ color: "#53bdeb" }}></i>
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     );

@@ -693,51 +693,48 @@ body {
 }
 
 .message.outbound .message-bubble {
-  background: #1a1d1f;
-  border-color: #1a1d1f;
-  color: white;
+  background: #d9fdd3;
+  /* WhatsApp Light Green */
+  border-color: #d9fdd3;
+  color: #111b21;
 }
 
 [data-theme="dark"] .message.outbound .message-bubble {
-  background: #0369a1;
-  border-color: #0369a1;
+  background: #005c4b;
+  border-color: #005c4b;
+  color: #e9edef;
 }
 
-.message-sender {
-  font-size: 12px;
-  font-weight: 600;
-  color: #0369a1;
-  margin-bottom: 6px;
-}
-
-[data-theme="dark"] .message-sender {
-  color: #38bdf8;
-}
-
-.message-text {
-  font-size: 14px;
-  line-height: 1.6;
-  color: #1a1d1f;
-  margin-bottom: 6px;
-}
-
-[data-theme="dark"] .message-text {
-  color: #ffffff;
-}
-
-.message.outbound .message-text {
-  color: white;
+.message-meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-top: 4px;
+  line-height: 1;
 }
 
 .message-time {
   font-size: 11px;
-  color: #9ca3af;
-  margin-top: 4px;
-  text-align: right;
+  color: #667781;
+}
+
+[data-theme="dark"] .message-time {
+  color: #8696a0;
 }
 
 .message.outbound .message-time {
-  color: rgba(255, 255, 255, 0.7);
+  color: #667781;
+  /* Dark text on light green */
+}
+
+[data-theme="dark"] .message.outbound .message-time {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.message-status {
+  font-size: 10px;
+  margin-left: 2px;
 }
 
 .message-input-area {

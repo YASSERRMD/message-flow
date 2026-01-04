@@ -75,35 +75,6 @@ func (a *API) SyncContacts(w http.ResponseWriter, r *http.Request) {
 	writeError(w, http.StatusServiceUnavailable, "whatsapp not initialized")
 }
 
-		var existing int
-		if err := conn.QueryRow(ctx, `SELECT COUNT(*) FROM users WHERE tenant_id=$1`, req.TenantID).Scan(&existing); err != nil {
-			return err
-		}
-		if err := conn.QueryRow(ctx, query, req.Email, string(passwordHash), req.TenantID, time.Now().UTC(), time.Now().UTC()).Scan(
-			&user.ID, &user.Email, &user.PasswordHash, &user.TenantID, &user.CreatedAt, &user.UpdatedAt,
-		); err != nil {
-			return err
-		}
-		role := "member"
-		if existing == 0 {
-			role = "owner"
-		}
-		_, err := conn.Exec(ctx, `
-			INSERT INTO users_extended (user_id, tenant_id, role, team_id, created_at, updated_at)
-			VALUES ($1,$2,$3,$4,$5,$6)
-			ON CONFLICT (user_id) DO UPDATE SET role=EXCLUDED.role, updated_at=EXCLUDED.updated_at`,
-			user.ID, req.TenantID, role, req.TenantID, time.Now().UTC(), time.Now().UTC())
-		if err != nil {
-			return err
-		}
-		_, err = conn.Exec(ctx, `
-			INSERT INTO team_members (team_id, user_id, role, joined_at)
-			VALUES ($1,$2,$3,$4)
-			ON CONFLICT (team_id, user_id) DO UPDATE SET role=EXCLUDED.role`,
-			req.TenantID, user.ID, role, time.Now().UTC())
-		if err != nil {
-			return err
-		}
 		_, err = conn.Exec(ctx, `
 			INSERT INTO user_roles (user_id, tenant_id, role, created_at)
 			VALUES ($1,$2,$3,$4)`, user.ID, req.TenantID, role, time.Now().UTC())
