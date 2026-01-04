@@ -253,3 +253,27 @@ func (m *Manager) consumeQR(session *Session, qrChan <-chan whatsmeow.QRChannelI
 	}
 	m.mu.Unlock()
 }
+
+func (m *Manager) DisconnectSession(tenantID int64) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	var sessionID string
+	var client *whatsmeow.Client
+
+	for id, sess := range m.sessions {
+		if sess.TenantID == tenantID {
+			sessionID = id
+			client = sess.Client
+			break
+		}
+	}
+
+	if sessionID != "" {
+		if client != nil {
+			client.Disconnect()
+		}
+		delete(m.sessions, sessionID)
+	}
+	return nil
+}

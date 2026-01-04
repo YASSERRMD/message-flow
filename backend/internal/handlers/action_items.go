@@ -29,6 +29,14 @@ type updateActionItemRequest struct {
 	Watchers    []int64 `json:"watchers"`
 }
 
+func (a *API) LogoutWhatsApp(w http.ResponseWriter, r *http.Request) {
+	tenantID := a.tenantID(r)
+	if a.WhatsApp != nil {
+		_ = a.WhatsApp.DisconnectSession(tenantID)
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "disconnected"})
+}
+
 func (a *API) CreateActionItem(w http.ResponseWriter, r *http.Request) {
 	var req createActionItemRequest
 	if err := readJSON(r, &req); err != nil {

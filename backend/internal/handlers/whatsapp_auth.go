@@ -42,7 +42,7 @@ func (a *API) StartWhatsAppAuth(w http.ResponseWriter, r *http.Request) {
 
 	// Wait up to 8 seconds for QR code to be generated
 	deadline := time.Now().Add(8 * time.Second)
-	for session.LastQR == "" && time.Now().Before(deadline) {
+	for session.Status != "connected" && session.LastQR == "" && time.Now().Before(deadline) {
 		time.Sleep(250 * time.Millisecond)
 		updated, ok := a.WhatsApp.GetSession(session.ID)
 		if !ok {

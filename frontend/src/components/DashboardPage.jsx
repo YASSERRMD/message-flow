@@ -247,7 +247,10 @@ export default function DashboardPage() {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await fetch(`${API_BASE}/auth/logout`, { method: "POST", headers: authHeaders });
+    } catch { }
     setToken("");
     setCsrf("");
     setAuthStatus("signed-out");
