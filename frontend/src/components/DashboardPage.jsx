@@ -340,7 +340,7 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
             {qrStatus === "loading" ? "Generating..." : "Generate QR Code"}
           </button>
         </div>
-      </>
+      </div>
     );
   }
 
@@ -654,18 +654,11 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
                                 <div className="summary-section">
                                   <h4>Topics</h4>
                                   <div className="topics-list">
-                                    {summaryData.topics.map((topic, i) => <span key={i} className="topic-tag">{topic}</span>)}
-                                  </div>
+                                  </>
+                                  ) : (
+                                  <p>No summary data</p>
+              )}
                                 </div>
-                              )}
-                            </>
-                          ) : (
-                            <p>No summary data</p>
-                          )}
+          </div>
                         </div>
-                      </div>
-                    </div>
-                  )}
-                </>
-              );
-}
+      )}
