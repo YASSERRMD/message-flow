@@ -305,22 +305,20 @@ export default function LLMProviderDashboard({ token, csrf }) {
               <div className="connect-card" style={{ maxWidth: '100%', padding: '24px', textAlign: 'left' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
                   <h2 style={{ fontSize: '18px', fontWeight: '600' }}>Active Providers</h2>
-                  <select
-                    className="form-input"
-                    style={{ width: 'auto' }}
-                    value={sortKey}
-                    onChange={(e) => setSortKey(e.target.value)}
-                  >
-                    <option value="health">Sort by Health</option>
-                    <option value="name">Sort by Name</option>
-                    <option value="cost">Sort by Cost</option>
-                  </select>
+
                 </div>
                 <ProvidersListView
-                  providers={providers}
+                  providers={filteredProviders}
                   health={health}
                   onSelect={setSelectedProvider}
                   selectedId={selectedProvider?.id}
+                  filters={filters}
+                  setFilters={setFilters}
+                  sortKey={sortKey}
+                  setSortKey={setSortKey}
+                  onTest={handleTest}
+                  onRemove={handleRemove}
+                  loading={loading}
                 />
               </div>
 
@@ -374,7 +372,25 @@ export default function LLMProviderDashboard({ token, csrf }) {
       </div>
 
       {showAdd && <AddProviderModal onClose={() => setShowAdd(false)} onSave={loadAll} token={token} />}
+
+      {selectedProvider && (
+        <div className="summary-modal-overlay">
+          <div className="summary-modal" style={{ maxWidth: '800px' }}>
+            <div className="summary-header">
+              <h3>{selectedProvider.provider_name} Details</h3>
+              <button className="close-btn" onClick={() => setSelectedProvider(null)}><i className="fas fa-times"></i></button>
+            </div>
+            <div className="summary-content">
+              <ProviderDetailsPanel
+                provider={selectedProvider}
+                onClose={() => setSelectedProvider(null)}
+                onUpdate={handleUpdate}
+                headers={headers}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
-
