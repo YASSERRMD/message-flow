@@ -1,4 +1,6 @@
-export default function PerformanceComparisonTable({ comparison, recommendations }) {
+export default function PerformanceComparisonTable({ comparison = [], recommendations = [] }) {
+  const safeComparison = Array.isArray(comparison) ? comparison : [];
+  const safeRecommendations = Array.isArray(recommendations) ? recommendations : [];
   return (
     <section className="panel llm-panel">
       <header className="panel-header">
@@ -19,13 +21,16 @@ export default function PerformanceComparisonTable({ comparison, recommendations
           </tr>
         </thead>
         <tbody>
-          {comparison.map((row) => (
+          {safeComparison.length === 0 && (
+            <tr><td colSpan="6" style={{ textAlign: 'center', padding: '20px', color: '#888' }}>No performance data available</td></tr>
+          )}
+          {safeComparison.map((row) => (
             <tr key={row.provider_id}>
               <td>{row.provider}</td>
               <td>{Math.round(row.avg_latency_ms)}ms</td>
               <td>{row.success_rate.toFixed(1)}%</td>
               <td>{row.cost_per_1k ? `$${row.cost_per_1k}` : "--"}</td>
-              <td>${row.monthly_spent.toFixed(2)}</td>
+              <td>${(row.monthly_spent || 0).toFixed(2)}</td>
               <td>{row.requests}</td>
             </tr>
           ))}
@@ -34,7 +39,8 @@ export default function PerformanceComparisonTable({ comparison, recommendations
       <div className="recommendations">
         <h4>Recommendations</h4>
         <ul>
-          {recommendations.map((rec, index) => (
+          {safeRecommendations.length === 0 && <li>No recommendations yet.</li>}
+          {safeRecommendations.map((rec, index) => (
             <li key={index}>{rec}</li>
           ))}
         </ul>
