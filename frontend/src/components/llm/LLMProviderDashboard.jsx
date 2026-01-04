@@ -69,10 +69,11 @@ export default function LLMProviderDashboard({ token, csrf }) {
       }
       if (healthRes.ok) {
         const data = await healthRes.json();
-        setHealth(data.data || []);
+        setHealth(Array.isArray(data.data) ? data.data : []);
       }
       if (costsRes.ok) {
-        setCosts(await costsRes.json());
+        const costData = await costsRes.json();
+        setCosts(costData || { by_provider: [], by_feature: [], by_day: [] });
       }
       if (usageRes.ok) {
         const data = await usageRes.json();
@@ -86,6 +87,8 @@ export default function LLMProviderDashboard({ token, csrf }) {
         const data = await recRes.json();
         setRecommendations(data.data || []);
       }
+    } catch (e) {
+      console.error("Failed to load dashboard data", e);
     } finally {
       setLoading(false);
     }
@@ -99,43 +102,49 @@ export default function LLMProviderDashboard({ token, csrf }) {
 
   useEffect(() => {
     const alertsList = [];
-    health.forEach((item) => {
-      if (item.status === "unhealthy" || item.status === "error") {
-        alertsList.push({
-          id: `health-${item.provider_id}`,
-          type: "error",
-          message: `${item.provider} is unhealthy`
-        });
-      }
-      if (item.status === "slow") {
-        alertsList.push({
-          id: `slow-${item.provider_id}`,
-          type: "warning",
-          message: `${item.provider} is slow (>${Math.round(item.avg_latency_ms)}ms)`
-        });
-      }
-    });
-    costs.by_provider?.forEach((item) => {
-      const provider = providers.find((p) => p.provider_name === item.provider);
-      if (provider?.monthly_budget && item.total_cost >= provider.monthly_budget * 0.8) {
-        alertsList.push({
-          id: `budget-${provider.id}`,
-          type: "warning",
-          message: `${provider.provider_name} budget above 80%`
-        });
-      }
-    });
+    if (Array.isArray(health)) {
+      health.forEach((item) => {
+        if (item.status === "unhealthy" || item.status === "error") {
+          alertsList.push({
+            id: `health-${item.provider_id}`,
+            type: "error",
+            message: `${item.provider} is unhealthy`
+          });
+        }
+        if (item.status === "slow") {
+          alertsList.push({
+            id: `slow-${item.provider_id}`,
+            type: "warning",
+            message: `${item.provider} is slow (>${Math.round(item.avg_latency_ms)}ms)`
+          });
+        }
+      });
+    }
+
+    if (costs?.by_provider && Array.isArray(providers)) {
+      costs.by_provider.forEach((item) => {
+        const provider = providers.find((p) => p.provider_name === item.provider);
+        if (provider?.monthly_budget && item.total_cost >= provider.monthly_budget * 0.8) {
+          alertsList.push({
+            id: `budget-${provider.id}`,
+            type: "warning",
+            message: `${provider.provider_name} budget above 80%`
+          });
+        }
+      });
+    }
     setAlerts(alertsList);
   }, [health, costs, providers]);
 
   useEffect(() => {
-    if (!costs.by_provider?.length) return;
-    setProviders((prev) =>
-      prev.map((provider) => {
+    if (!costs?.by_provider?.length) return;
+    setProviders((prev) => {
+      if (!Array.isArray(prev)) return [];
+      return prev.map((provider) => {
         const match = costs.by_provider.find((item) => item.provider === provider.provider_name);
         return { ...provider, monthly_spent: match ? match.total_cost : 0 };
-      })
-    );
+      });
+    });
   }, [costs]);
 
   useEffect(() => {
@@ -285,7 +294,7 @@ export default function LLMProviderDashboard({ token, csrf }) {
               <div className="stat-label">Healthy Providers</div>
             </div>
             <div className="stat-box">
-              <div className="stat-value">${(costs.total_cost || 0).toFixed(2)}</div>
+              <div className="stat-value">${(costs?.total_cost || 0).toFixed(2)}</div>
               <div className="stat-label">Monthly Spend</div>
             </div>
             <div className="stat-box">
