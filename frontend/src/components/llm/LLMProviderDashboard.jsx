@@ -1,40 +1,17 @@
+import { useCallback, useEffect, useMemo, useState } from "react";
+import useStoredState from "../../hooks/useStoredState.js";
+import ProvidersListView from "./ProvidersListView.jsx";
+import ProviderDetailsPanel from "./ProviderDetailsPanel.jsx";
+import AddProviderModal from "./AddProviderModal.jsx";
+import HealthStatusDashboard from "./HealthStatusDashboard.jsx";
+import CostAnalyticsDashboard from "./CostAnalyticsDashboard.jsx";
+import PerformanceComparisonTable from "./PerformanceComparisonTable.jsx";
+import FeatureAssignmentPanel from "./FeatureAssignmentPanel.jsx";
+import SettingsPanel from "./SettingsPanel.jsx";
+import AlertPanel from "./AlertPanel.jsx";
 import "./llm-dashboard.css";
 
-// ... previous imports ...
-
-export default function LLMProviderDashboard({ token, csrf }) {
-  // ... existing state ...
-
-  // Remove this internal header block or visual duplications
-  // Applying new container class
-  return (
-    <div className="llm-dashboard-container">
-      <div className="llm-header-actions">
-        <div className="llm-header-left">
-          <h1>Provider Management</h1>
-          <p className="subtitle">Track health, cost, and performance for every model</p>
-        </div>
-        <div className="llm-header-right">
-          <button className="llm-btn llm-btn-secondary" onClick={() => window.location.reload()}>
-            <i className="fas fa-sync"></i> Refresh
-          </button>
-          <button className="llm-btn llm-btn-primary" onClick={() => setShowAdd(true)}>
-            <i className="fas fa-plus"></i> Add Provider
-          </button>
-        </div>
-      </div>
-
-      {/* Rest of the dashboard content using new grid classes */}
-      <div className="llm-stats-grid">
-        {/* ... stats ... */}
-      </div>
-
-      <div className="llm-main-grid">
-        {/* ... tables and panels ... */}
-      </div>
-    </div>
-  );
-}
+const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8081/api/v1";
 
 const providerModels = {
   claude: ["claude-3-opus-20240229", "claude-3-sonnet-20240229"],
