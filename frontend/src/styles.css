@@ -694,6 +694,17 @@ body {
   border-color: #0369a1;
 }
 
+.message-sender {
+  font-size: 12px;
+  font-weight: 600;
+  color: #0369a1;
+  margin-bottom: 6px;
+}
+
+[data-theme="dark"] .message-sender {
+  color: #38bdf8;
+}
+
 .message-text {
   font-size: 14px;
   line-height: 1.6;

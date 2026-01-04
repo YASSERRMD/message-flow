@@ -411,14 +411,21 @@ export default function DashboardPage() {
               <div className="messages-container">
                 <div className="message-group">
                   <div className="message-date">Today</div>
-                  {messages.map((msg) => (
-                    <div key={msg.id} className={`message ${msg.is_outbound ? "outbound" : ""}`}>
-                      <div className="message-bubble">
-                        <div className="message-text">{msg.content}</div>
-                        <div className="message-time">{formatTime(msg.created_at)}</div>
+                  {messages.map((msg) => {
+                    const isGroup = selectedConversation?.whatsapp_jid?.includes("@g.us");
+                    const senderName = msg.sender_name || msg.sender_id?.split("@")[0] || "Unknown";
+                    return (
+                      <div key={msg.id} className={`message ${msg.is_outbound ? "outbound" : ""}`}>
+                        <div className="message-bubble">
+                          {!msg.is_outbound && isGroup && (
+                            <div className="message-sender">{senderName}</div>
+                          )}
+                          <div className="message-text">{msg.content}</div>
+                          <div className="message-time">{formatTime(msg.created_at)}</div>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 
