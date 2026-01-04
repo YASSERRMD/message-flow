@@ -567,10 +567,24 @@ body {
 }
 
 .wa-message-bubble {
-  padding: 12px 16px;
+  padding: 8px 12px;
   background: var(--bg-secondary);
-  border-radius: 16px 16px 16px 4px;
-  border: 1px solid var(--border);
+  border-radius: 8px;
+  border: none;
+  box-shadow: 0 1px 0.5px rgba(0, 0, 0, 0.13);
+  position: relative;
+  max-width: 100%;
+}
+
+/* Tail for incoming messages */
+.wa-message:not(.is-outbound) .wa-message-bubble::before {
+  content: "";
+  position: absolute;
+  left: -6px;
+  top: 0;
+  border-width: 0 8px 8px 0;
+  border-style: solid;
+  border-color: transparent var(--bg-secondary) transparent transparent;
 }
 
 .chat-type-icon {
@@ -579,10 +593,32 @@ body {
 }
 
 .wa-message.is-outbound .wa-message-bubble {
-  background: var(--accent);
-  color: white;
+  background: #dcf8c6;
+  color: #111b21;
   border: none;
-  border-radius: 16px 16px 4px 16px;
+  border-radius: 8px;
+  box-shadow: 0 1px 0.5px rgba(0, 0, 0, 0.13);
+}
+
+/* Tail for outgoing messages */
+.wa-message.is-outbound .wa-message-bubble::after {
+  content: "";
+  position: absolute;
+  right: -6px;
+  top: 0;
+  border-width: 0 0 8px 8px;
+  border-style: solid;
+  border-color: transparent transparent transparent #dcf8c6;
+}
+
+/* Dark theme adjustments */
+[data-theme="dark"] .wa-message.is-outbound .wa-message-bubble {
+  background: #005c4b;
+  color: #e9edef;
+}
+
+[data-theme="dark"] .wa-message.is-outbound .wa-message-bubble::after {
+  border-color: transparent transparent transparent #005c4b;
 }
 
 .wa-message-text {
