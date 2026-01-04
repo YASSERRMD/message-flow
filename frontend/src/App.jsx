@@ -57,7 +57,7 @@ export default function App() {
           </button>
         </div>
       </nav>
-      {view === "operations" && <DashboardPage />}
+      {view === "operations" && <DashboardPage onNavigate={setView} />}
       {view === "collab" && (
         <CollaborationPage token={token} csrf={csrf} role={role} />
       )}

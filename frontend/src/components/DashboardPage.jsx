@@ -11,7 +11,9 @@ const defaultSummary = {
   open_action_items: 0
 };
 
-export default function DashboardPage() {
+export default function DashboardPage({ onNavigate }) {
+
+
   const [theme, setTheme] = useStoredState("mf-theme", "light");
   const [token, setToken] = useStoredState("mf-token", "");
   const [csrf, setCsrf] = useStoredState("mf-csrf", "");
@@ -349,8 +351,8 @@ export default function DashboardPage() {
           />
         </div>
         <div className="header-right">
-          <button className="header-btn" title="Team Hub" onClick={() => window.location.href = '/team'}><i className="fas fa-users"></i></button>
-          <button className="header-btn" title="LLM Control" onClick={() => window.location.href = '/llm'}><i className="fas fa-brain"></i></button>
+          <button className="header-btn" title="Team Hub" onClick={() => onNavigate && onNavigate('collab')}><i className="fas fa-users"></i></button>
+          <button className="header-btn" title="LLM Control" onClick={() => onNavigate && onNavigate('llm')}><i className="fas fa-brain"></i></button>
           <button className="header-btn" title="Notifications"><i className="fas fa-bell"></i></button>
           <button className="header-btn" onClick={() => setTheme(theme === "light" ? "dark" : "light")}>
             <i className={theme === "light" ? "fas fa-moon" : "fas fa-sun"}></i>
