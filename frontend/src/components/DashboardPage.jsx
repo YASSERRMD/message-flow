@@ -1,9 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import ActionItemsTab from "./ActionItemsTab.jsx";
-import ConversationsSidebar from "./ConversationsSidebar.jsx";
-import DailySummaryCard from "./DailySummaryCard.jsx";
-import ImportantMessagesTab from "./ImportantMessagesTab.jsx";
-import MessagesList from "./MessagesList.jsx";
 import useStoredState from "../hooks/useStoredState.js";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8081/api/v1";
@@ -16,13 +11,6 @@ const defaultSummary = {
   open_action_items: 0
 };
 
-const formatDate = (value) => {
-  if (!value) return "--";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "--";
-  return date.toLocaleString();
-};
-
 export default function DashboardPage() {
   const [theme, setTheme] = useStoredState("mf-theme", "light");
   const [token, setToken] = useStoredState("mf-token", "");
@@ -31,25 +19,19 @@ export default function DashboardPage() {
   const [user, setUser] = useState(null);
 
   const [summary, setSummary] = useState(defaultSummary);
-  const [dailySummary, setDailySummary] = useState(null);
   const [conversations, setConversations] = useState([]);
-  const [importantMessages, setImportantMessages] = useState([]);
-  const [actionItems, setActionItems] = useState([]);
   const [messages, setMessages] = useState([]);
   const [messagesPage, setMessagesPage] = useState(1);
   const [hasMoreMessages, setHasMoreMessages] = useState(true);
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [status, setStatus] = useState("idle");
   const [authStatus, setAuthStatus] = useState("signed-out");
   const [qrSession, setQrSession] = useState("");
   const [qrImage, setQrImage] = useState("");
-  const [qrTimeout, setQrTimeout] = useState(0);
   const [qrStatus, setQrStatus] = useState("idle");
   const [qrError, setQrError] = useState("");
   const [filter, setFilter] = useState("all");
-  const [showModal, setShowModal] = useState(false);
-  const [activeNav, setActiveNav] = useState("dashboard");
+  const [replyText, setReplyText] = useState("");
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -63,53 +45,35 @@ export default function DashboardPage() {
     }
   }, [token]);
 
-  // Request browser notification permission on mount
   useEffect(() => {
     if ("Notification" in window && Notification.permission === "default") {
       Notification.requestPermission();
     }
   }, []);
 
-  // WebSocket for real-time notifications
   useEffect(() => {
     if (!token || authStatus !== "signed-in") return;
-
     const wsUrl = `${WS_BASE}/ws?tenant_id=${tenantId}`;
     const ws = new WebSocket(wsUrl);
-
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
         if (data.type === "message.received") {
           loadDashboard();
-          if (Notification.permission === "granted") {
-            const notification = new Notification("New WhatsApp Message", {
-              body: `New message in conversation ${data.conversation_id}`,
-              icon: "/logo.svg",
-              tag: `msg-${data.message_id}`
-            });
-            notification.onclick = () => {
-              window.focus();
-              const conv = conversations.find(c => c.id === data.conversation_id);
-              if (conv) {
-                setSelectedConversation(conv);
-                loadMessages(conv.id);
-                setShowModal(true);
-              }
-            };
+          if (selectedConversation?.id === data.conversation_id) {
+            loadMessages(selectedConversation.id, 1);
           }
-          // Play notification sound
-          try {
-            const audio = new Audio("data:audio/wav;base64,UklGRl9vT19...");
-            audio.volume = 0.3;
-            audio.play().catch(() => { });
-          } catch { }
+          if (Notification.permission === "granted") {
+            new Notification("New WhatsApp Message", {
+              body: `New message received`,
+              icon: "/logo.svg"
+            });
+          }
         }
       } catch { }
     };
-
     return () => ws.close();
-  }, [token, authStatus, tenantId, conversations]);
+  }, [token, authStatus, tenantId, selectedConversation]);
 
   const authHeaders = useMemo(() => ({
     "Content-Type": "application/json",
@@ -119,14 +83,10 @@ export default function DashboardPage() {
 
   const loadDashboard = useCallback(async () => {
     if (!token) return;
-    setStatus("loading");
     try {
-      const [convRes, summRes, impRes, actRes, dailyRes] = await Promise.all([
+      const [convRes, summRes] = await Promise.all([
         fetch(`${API_BASE}/conversations`, { headers: authHeaders }),
-        fetch(`${API_BASE}/summary`, { headers: authHeaders }),
-        fetch(`${API_BASE}/important-messages`, { headers: authHeaders }),
-        fetch(`${API_BASE}/action-items`, { headers: authHeaders }),
-        fetch(`${API_BASE}/daily-summary`, { headers: authHeaders })
+        fetch(`${API_BASE}/summary`, { headers: authHeaders })
       ]);
       if (convRes.ok) {
         const data = await convRes.json();
@@ -136,21 +96,7 @@ export default function DashboardPage() {
         const data = await summRes.json();
         setSummary(data.data || defaultSummary);
       }
-      if (impRes.ok) {
-        const data = await impRes.json();
-        setImportantMessages(data.data || []);
-      }
-      if (actRes.ok) {
-        const data = await actRes.json();
-        setActionItems(data.data || []);
-      }
-      if (dailyRes.ok) {
-        const data = await dailyRes.json();
-        setDailySummary(data || null);
-      }
-    } finally {
-      setStatus("idle");
-    }
+    } catch { }
   }, [token, authHeaders]);
 
   useEffect(() => {
@@ -219,11 +165,10 @@ export default function DashboardPage() {
   const pollWhatsAppStatus = async (sessionId) => {
     if (!sessionId) return;
     let attempts = 0;
-    const maxAttempts = 60;
     const poll = async () => {
-      if (attempts >= maxAttempts) {
+      if (attempts >= 60) {
         setQrStatus("idle");
-        setQrError("QR code expired. Please try again.");
+        setQrError("QR code expired");
         return;
       }
       attempts++;
@@ -239,15 +184,9 @@ export default function DashboardPage() {
             setQrImage("");
             loadDashboard();
             return;
-          } else if (data.status === "pending" || data.status === "waiting") {
+          } else if (data.qr_code) {
             setQrStatus("pending");
-            if (data.qr_code) {
-              setQrImage(data.qr_code);
-            }
-          } else if (data.status === "expired" || data.status === "failed") {
-            setQrStatus("idle");
-            setQrError("Session expired or failed. Please try again.");
-            return;
+            setQrImage(data.qr_code);
           }
         }
       } catch { }
@@ -256,73 +195,28 @@ export default function DashboardPage() {
     poll();
   };
 
-  const handleReply = async (text) => {
-    if (!selectedConversation || !text.trim()) return;
+  const handleSendMessage = async () => {
+    if (!selectedConversation || !replyText.trim()) return;
     try {
       const res = await fetch(`${API_BASE}/conversations/${selectedConversation.id}/messages`, {
         method: "POST",
         headers: authHeaders,
-        body: JSON.stringify({ content: text })
+        body: JSON.stringify({ content: replyText })
       });
-      if (!res.ok) {
-        alert("Failed to send message. Please try again.");
-        return;
+      if (res.ok) {
+        setReplyText("");
+        loadMessages(selectedConversation.id, 1);
       }
-      loadMessages(selectedConversation.id, 1);
-    } catch (err) {
-      alert("Failed to send message: " + err.message);
-    }
-  };
-
-  const handleForward = async () => { };
-
-  const handleActionCreate = async (payload) => {
-    await fetch(`${API_BASE}/action-items`, {
-      method: "POST",
-      headers: authHeaders,
-      body: JSON.stringify(payload)
-    });
-    loadDashboard();
-  };
-
-  const handleActionUpdate = async (id, payload) => {
-    await fetch(`${API_BASE}/action-items/${id}`, {
-      method: "PATCH",
-      headers: authHeaders,
-      body: JSON.stringify(payload)
-    });
-    loadDashboard();
-  };
-
-  const handleActionDelete = async (id) => {
-    await fetch(`${API_BASE}/action-items/${id}`, {
-      method: "DELETE",
-      headers: authHeaders
-    });
-    loadDashboard();
+    } catch { }
   };
 
   const handleLogout = () => {
     setToken("");
     setCsrf("");
-    setUser(null);
     setAuthStatus("signed-out");
-    setQrSession("");
-    setQrImage("");
-    setQrStatus("idle");
     setConversations([]);
     setMessages([]);
     setSelectedConversation(null);
-  };
-
-  const openConversation = (conv) => {
-    setSelectedConversation(conv);
-    loadMessages(conv.id);
-    setShowModal(true);
-  };
-
-  const closeModal = () => {
-    setShowModal(false);
   };
 
   const getInitials = (name) => {
@@ -330,7 +224,7 @@ export default function DashboardPage() {
     return name.split(" ").map(w => w[0]).join("").substring(0, 2).toUpperCase();
   };
 
-  const getAvatarColor = (name) => {
+  const getAvatarStyle = (name) => {
     const colors = [
       { bg: "#f0f9ff", color: "#0369a1" },
       { bg: "#fef3c7", color: "#a16207" },
@@ -342,262 +236,255 @@ export default function DashboardPage() {
       { bg: "#eff6ff", color: "#1e40af" }
     ];
     const index = (name || "").charCodeAt(0) % colors.length;
-    return colors[index];
+    return { background: colors[index].bg, color: colors[index].color };
   };
 
+  const formatTime = (dateStr) => {
+    if (!dateStr) return "";
+    const d = new Date(dateStr);
+    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  };
+
+  const selectConversation = (conv) => {
+    setSelectedConversation(conv);
+  };
+
+  // Not connected - show QR panel
+  if (authStatus !== "signed-in") {
+    return (
+      <div className="connect-screen">
+        <div className="connect-card">
+          <div className="connect-logo">
+            <div className="logo-icon"><i className="fas fa-comment-dots"></i></div>
+            <span>MessageFlow</span>
+          </div>
+          <h2>Connect WhatsApp</h2>
+          <p>Scan the QR code with your WhatsApp mobile app</p>
+          <div className="qr-box">
+            {qrStatus === "loading" ? (
+              <div className="qr-loading"><div className="spinner"></div></div>
+            ) : qrImage ? (
+              <img src={qrImage} alt="QR Code" />
+            ) : (
+              <div className="qr-placeholder"><i className="fas fa-qrcode"></i></div>
+            )}
+          </div>
+          {qrError && <div className="error-msg">{qrError}</div>}
+          <button className="connect-btn" onClick={startWhatsAppConnect} disabled={qrStatus === "loading"}>
+            {qrStatus === "loading" ? "Generating..." : "Generate QR Code"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="premium-app">
-      {/* Vertical Sidebar */}
-      <nav className="vertical-sidebar">
-        <div className="brand-mark">
-          <img src="/logo.svg" alt="MessageFlow" />
+    <div className="app-container">
+      {/* Top Header */}
+      <header className="top-header">
+        <div className="header-left">
+          <div className="logo">
+            <div className="logo-icon"><i className="fas fa-comment-dots"></i></div>
+            <span>MessageFlow</span>
+          </div>
+          <div className="connection-status">
+            <div className="status-dot"></div>
+            <span>Connected • {conversations.length} chats</span>
+          </div>
         </div>
-        <div className={`nav-icon ${activeNav === "dashboard" ? "active" : ""}`} onClick={() => setActiveNav("dashboard")}>
-          <i className="fas fa-chart-pie"></i>
+        <div className="header-search">
+          <i className="fas fa-search search-icon"></i>
+          <input
+            type="text"
+            className="search-input"
+            placeholder="Search conversations..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
         </div>
-        <div className={`nav-icon ${activeNav === "chats" ? "active" : ""}`} onClick={() => setActiveNav("chats")}>
-          <i className="fas fa-comments"></i>
+        <div className="header-right">
+          <button className="header-btn"><i className="fas fa-bell"></i></button>
+          <button className="header-btn" onClick={() => setTheme(theme === "light" ? "dark" : "light")}>
+            <i className={theme === "light" ? "fas fa-moon" : "fas fa-sun"}></i>
+          </button>
+          <button className="header-btn" onClick={handleLogout}><i className="fas fa-sign-out-alt"></i></button>
         </div>
-        <div className={`nav-icon ${activeNav === "analytics" ? "active" : ""}`} onClick={() => setActiveNav("analytics")}>
-          <i className="fas fa-chart-line"></i>
-        </div>
-        <div className={`nav-icon ${activeNav === "settings" ? "active" : ""}`} onClick={() => setActiveNav("settings")}>
-          <i className="fas fa-cog"></i>
-        </div>
-      </nav>
+      </header>
 
       {/* Main Container */}
       <div className="main-container">
-        {/* Header */}
-        <header className="top-header">
-          <div className="header-left">
-            <h1 className="page-heading">MessageFlow</h1>
-            {authStatus === "signed-in" && (
-              <div className="status-pill">
-                <div className="pulse-dot"></div>
-                <span>Connected • {conversations.length} chats</span>
-              </div>
-            )}
-          </div>
-          <div className="header-right">
-            <button className="header-btn"><i className="fas fa-search"></i></button>
-            <button className="header-btn"><i className="fas fa-bell"></i></button>
-            <button className="header-btn" onClick={() => setTheme(theme === "light" ? "dark" : "light")}>
-              {theme === "light" ? <i className="fas fa-moon"></i> : <i className="fas fa-sun"></i>}
-            </button>
-          </div>
-        </header>
-
-        {/* Content */}
-        <div className="main-content">
-          {authStatus !== "signed-in" ? (
-            /* QR Connection Panel */
-            <div className="connection-fullscreen">
-              <div className="connection-card">
-                <h2>Connect WhatsApp</h2>
-                <p>Scan the QR code with your WhatsApp mobile app</p>
-                <div className="qr-box">
-                  {qrStatus === "loading" ? (
-                    <div className="qr-loading"><div className="spinner"></div></div>
-                  ) : qrImage ? (
-                    <img src={qrImage} alt="QR Code" />
-                  ) : (
-                    <div className="qr-placeholder"><i className="fas fa-qrcode"></i></div>
-                  )}
-                </div>
-                {qrError && <div className="error-msg">{qrError}</div>}
-                <button className="btn-primary" onClick={startWhatsAppConnect} disabled={qrStatus === "loading"}>
-                  {qrStatus === "loading" ? "Generating..." : "Generate QR Code"}
-                </button>
-              </div>
+        {/* Conversations Sidebar */}
+        <aside className="conversations-sidebar">
+          <div className="sidebar-header">
+            <h2 className="sidebar-title">Conversations</h2>
+            <div className="filter-tabs">
+              <button className={`tab ${filter === "all" ? "active" : ""}`} onClick={() => setFilter("all")}>All</button>
+              <button className={`tab ${filter === "unread" ? "active" : ""}`} onClick={() => setFilter("unread")}>Unread</button>
+              <button className={`tab ${filter === "groups" ? "active" : ""}`} onClick={() => setFilter("groups")}>Groups</button>
             </div>
+          </div>
+          <div className="conversations-list">
+            {filteredConversations.map((conv) => {
+              const name = conv.contact_name || conv.whatsapp_jid?.split("@")[0] || "Unknown";
+              const isGroup = conv.whatsapp_jid?.includes("@g.us");
+              return (
+                <div
+                  key={conv.id}
+                  className={`conversation-item ${selectedConversation?.id === conv.id ? "active" : ""}`}
+                  onClick={() => selectConversation(conv)}
+                >
+                  <div className="conv-avatar" style={getAvatarStyle(name)}>
+                    {getInitials(name)}
+                  </div>
+                  <div className="conv-content">
+                    <div className="conv-header">
+                      <span className="conv-name">{name}</span>
+                      <span className="conv-time">{formatTime(conv.last_message_at)}</span>
+                    </div>
+                    <div className="conv-preview">{conv.last_message || "No messages yet..."}</div>
+                    <div className="conv-meta">
+                      {isGroup && <span><i className="fas fa-users"></i> Group</span>}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </aside>
+
+        {/* Chat Area */}
+        <main className="chat-area">
+          {selectedConversation ? (
+            <>
+              <div className="chat-header">
+                <div className="chat-user-info">
+                  <div className="chat-avatar" style={getAvatarStyle(selectedConversation.contact_name || "")}>
+                    {getInitials(selectedConversation.contact_name || selectedConversation.whatsapp_jid)}
+                  </div>
+                  <div className="chat-details">
+                    <h3>{selectedConversation.contact_name || selectedConversation.whatsapp_jid?.split("@")[0]}</h3>
+                    <p>{selectedConversation.whatsapp_jid}</p>
+                  </div>
+                </div>
+                <div className="chat-actions">
+                  <button className="action-btn"><i className="fas fa-search"></i> Search</button>
+                  <button className="action-btn primary"><i className="fas fa-sparkles"></i> Summarize</button>
+                </div>
+              </div>
+
+              <div className="messages-container">
+                <div className="message-group">
+                  <div className="message-date">Today</div>
+                  {messages.map((msg) => (
+                    <div key={msg.id} className={`message ${msg.is_outbound ? "outbound" : ""}`}>
+                      <div className="message-bubble">
+                        <div className="message-text">{msg.content}</div>
+                        <div className="message-time">{formatTime(msg.created_at)}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="message-input-area">
+                <div className="input-wrapper">
+                  <button className="attach-btn"><i className="fas fa-paperclip"></i></button>
+                  <textarea
+                    className="input-field"
+                    placeholder="Type your message..."
+                    rows="1"
+                    value={replyText}
+                    onChange={(e) => setReplyText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSendMessage();
+                      }
+                    }}
+                  />
+                  <button className="send-btn" onClick={handleSendMessage}><i className="fas fa-paper-plane"></i></button>
+                </div>
+              </div>
+            </>
           ) : (
-            <div className="dashboard-grid">
-              {/* Metrics Row */}
-              <div className="metrics-row">
-                <div className="metric-card">
-                  <div className="metric-header">
-                    <div className="metric-icon" style={{ background: "#f0f9ff", color: "#0369a1" }}>
-                      <i className="fas fa-comments"></i>
-                    </div>
-                    <div className="metric-badge" style={{ background: "#f0f9ff", color: "#0369a1" }}>+12%</div>
-                  </div>
-                  <div className="metric-value">{summary.total_conversations || conversations.length}</div>
-                  <div className="metric-label">Total Chats</div>
-                </div>
-                <div className="metric-card">
-                  <div className="metric-header">
-                    <div className="metric-icon" style={{ background: "#f0fdf4", color: "#15803d" }}>
-                      <i className="fas fa-envelope"></i>
-                    </div>
-                    <div className="metric-badge" style={{ background: "#f0fdf4", color: "#15803d" }}>+8%</div>
-                  </div>
-                  <div className="metric-value">{summary.total_messages || 342}</div>
-                  <div className="metric-label">Messages Today</div>
-                </div>
-                <div className="metric-card">
-                  <div className="metric-header">
-                    <div className="metric-icon" style={{ background: "#fef3c7", color: "#a16207" }}>
-                      <i className="fas fa-star"></i>
-                    </div>
-                    <div className="metric-badge" style={{ background: "#fef3c7", color: "#a16207" }}>{summary.open_action_items || 12}</div>
-                  </div>
-                  <div className="metric-value">{summary.open_action_items || 12}</div>
-                  <div className="metric-label">Action Items</div>
-                </div>
-                <div className="metric-card">
-                  <div className="metric-header">
-                    <div className="metric-icon" style={{ background: "#fef2f2", color: "#b91c1c" }}>
-                      <i className="fas fa-fire"></i>
-                    </div>
-                    <div className="metric-badge" style={{ background: "#fef2f2", color: "#b91c1c" }}>{summary.important_messages || 8}</div>
-                  </div>
-                  <div className="metric-value">{summary.important_messages || 8}</div>
-                  <div className="metric-label">Urgent</div>
-                </div>
-              </div>
-
-              {/* Main Grid: Conversations + Actions */}
-              <div className="content-grid">
-                {/* Conversations Panel */}
-                <div className="conversations-panel">
-                  <div className="panel-header">
-                    <h2 className="panel-title">Conversations</h2>
-                    <div className="filter-pills">
-                      <button className={`pill ${filter === "all" ? "active" : ""}`} onClick={() => setFilter("all")}>All</button>
-                      <button className={`pill ${filter === "unread" ? "active" : ""}`} onClick={() => setFilter("unread")}>Unread</button>
-                      <button className={`pill ${filter === "groups" ? "active" : ""}`} onClick={() => setFilter("groups")}>Groups</button>
-                    </div>
-                  </div>
-                  <div className="conversations-grid">
-                    {filteredConversations.slice(0, 8).map((conv) => {
-                      const name = conv.contact_name || conv.whatsapp_jid?.split("@")[0] || "Unknown";
-                      const avatar = getAvatarColor(name);
-                      const time = conv.last_message_at ? new Date(conv.last_message_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
-                      return (
-                        <div
-                          key={conv.id}
-                          className={`conversation-card ${selectedConversation?.id === conv.id ? "active" : ""}`}
-                          onClick={() => openConversation(conv)}
-                        >
-                          <div className="conv-top">
-                            <div className="conv-avatar" style={{ background: avatar.bg, color: avatar.color }}>
-                              {getInitials(name)}
-                            </div>
-                            <div className="conv-info">
-                              <div className="conv-name">{name}</div>
-                              <div className="conv-id">{conv.whatsapp_jid?.split("@")[0] || "status"}</div>
-                            </div>
-                            <div className="conv-time">{time}</div>
-                          </div>
-                          <div className="conv-preview">{conv.last_message || "No messages yet..."}</div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Actions Panel */}
-                <div className="actions-panel">
-                  <div className="action-box">
-                    <h3 className="action-title"><i className="fas fa-bolt"></i> Quick Actions</h3>
-                    <div className="action-list">
-                      <div className="action-item">
-                        <div className="action-item-icon"><i className="fas fa-sparkles"></i></div>
-                        <div className="action-item-text">
-                          <div className="action-item-title">Summarize All</div>
-                          <div className="action-item-desc">AI summary of chats</div>
-                        </div>
-                      </div>
-                      <div className="action-item">
-                        <div className="action-item-icon"><i className="fas fa-chart-bar"></i></div>
-                        <div className="action-item-text">
-                          <div className="action-item-title">Analytics</div>
-                          <div className="action-item-desc">View insights</div>
-                        </div>
-                      </div>
-                      <div className="action-item">
-                        <div className="action-item-icon"><i className="fas fa-star"></i></div>
-                        <div className="action-item-text">
-                          <div className="action-item-title">Important</div>
-                          <div className="action-item-desc">Flagged messages</div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="action-box create-box">
-                    <h3 className="action-title"><i className="fas fa-plus-circle"></i> Create Task</h3>
-                    <div className="form-group">
-                      <label className="form-label">Description</label>
-                      <input type="text" className="form-input" placeholder="Enter task..." />
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">Category</label>
-                      <select className="form-input">
-                        <option>Conversation</option>
-                        <option>Personal</option>
-                        <option>Team</option>
-                      </select>
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">Due Date</label>
-                      <input type="date" className="form-input" />
-                    </div>
-                    <button className="submit-button">Create Task</button>
-                  </div>
-                </div>
-              </div>
+            <div className="empty-chat">
+              <div className="empty-icon"><i className="fas fa-comments"></i></div>
+              <h3>Select a conversation</h3>
+              <p>Choose a chat from the sidebar to view messages</p>
             </div>
           )}
-        </div>
-      </div>
+        </main>
 
-      {/* Chat Modal */}
-      {showModal && selectedConversation && (
-        <div className="modal-overlay" onClick={closeModal}>
-          <div className="modal-container" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <div className="modal-user">
-                <div className="modal-user-avatar" style={getAvatarColor(selectedConversation.contact_name || "")}>
-                  {getInitials(selectedConversation.contact_name || selectedConversation.whatsapp_jid)}
-                </div>
-                <div className="modal-user-info">
-                  <h2>{selectedConversation.contact_name || selectedConversation.whatsapp_jid?.split("@")[0]}</h2>
-                  <p>{selectedConversation.whatsapp_jid}</p>
-                </div>
+        {/* Info Sidebar */}
+        <aside className="info-sidebar">
+          <div className="stats-grid">
+            <div className="stat-box">
+              <div className="stat-value">{summary.total_conversations || conversations.length}</div>
+              <div className="stat-label">Total Chats</div>
+            </div>
+            <div className="stat-box">
+              <div className="stat-value">{summary.total_messages || 342}</div>
+              <div className="stat-label">Messages</div>
+            </div>
+            <div className="stat-box">
+              <div className="stat-value">{summary.open_action_items || 12}</div>
+              <div className="stat-label">Action Items</div>
+            </div>
+            <div className="stat-box">
+              <div className="stat-value">{summary.important_messages || 8}</div>
+              <div className="stat-label">Urgent</div>
+            </div>
+          </div>
+
+          <div className="info-section">
+            <h4 className="section-title">Quick Actions</h4>
+            <div className="action-list-item">
+              <div className="action-icon-small"><i className="fas fa-sparkles"></i></div>
+              <div className="action-text-small">
+                <div className="action-title-small">AI Summary</div>
+                <div className="action-desc-small">Get conversation insights</div>
               </div>
-              <button className="modal-close" onClick={closeModal}><i className="fas fa-times"></i></button>
             </div>
-            <div className="modal-messages">
-              {messages.map((msg) => (
-                <div key={msg.id} className={`message-item ${msg.is_outbound ? "outbound" : ""}`}>
-                  <div className="message-bubble">
-                    <div className="message-text">{msg.content}</div>
-                    <div className="message-timestamp">{new Date(msg.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div>
-                  </div>
-                </div>
-              ))}
+            <div className="action-list-item">
+              <div className="action-icon-small"><i className="fas fa-chart-bar"></i></div>
+              <div className="action-text-small">
+                <div className="action-title-small">Analytics</div>
+                <div className="action-desc-small">View detailed stats</div>
+              </div>
             </div>
-            <div className="modal-input">
-              <div className="input-row">
-                <input
-                  type="text"
-                  className="message-field"
-                  placeholder="Type your message..."
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && e.target.value.trim()) {
-                      handleReply(e.target.value);
-                      e.target.value = "";
-                    }
-                  }}
-                />
-                <button className="send-btn"><i className="fas fa-paper-plane"></i></button>
+            <div className="action-list-item">
+              <div className="action-icon-small"><i className="fas fa-star"></i></div>
+              <div className="action-text-small">
+                <div className="action-title-small">Important</div>
+                <div className="action-desc-small">View flagged messages</div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+
+          <div className="info-section">
+            <h4 className="section-title">Create Task</h4>
+            <div className="create-task-form">
+              <div className="form-group">
+                <label className="form-label">Task Description</label>
+                <input type="text" className="form-input" placeholder="Enter task..." />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Category</label>
+                <select className="form-input">
+                  <option>Conversation</option>
+                  <option>Personal</option>
+                  <option>Team</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Due Date</label>
+                <input type="date" className="form-input" />
+              </div>
+              <button className="submit-btn">Create Task</button>
+            </div>
+          </div>
+        </aside>
+      </div>
     </div>
   );
 }
