@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 
-export default function FeatureAssignmentPanel({ features, providers, onAssign, onRemove }) {
+export default function FeatureAssignmentPanel({ features = [], providers = [], onAssign, onRemove }) {
   const [selectedFeature, setSelectedFeature] = useState("");
   const [providerId, setProviderId] = useState("");
   const [priority, setPriority] = useState(1);
@@ -36,7 +36,8 @@ export default function FeatureAssignmentPanel({ features, providers, onAssign, 
           Feature
           <select value={selectedFeature} onChange={(e) => setSelectedFeature(e.target.value)}>
             <option value="">Select feature</option>
-            {features.map((feature) => (
+            <option value="">Select feature</option>
+            {features?.map((feature) => (
               <option key={feature.feature} value={feature.feature}>{feature.feature}</option>
             ))}
           </select>
@@ -45,7 +46,7 @@ export default function FeatureAssignmentPanel({ features, providers, onAssign, 
           Provider
           <select value={providerId} onChange={(e) => setProviderId(e.target.value)}>
             <option value="">Select provider</option>
-            {providers.map((provider) => (
+            {providers?.map((provider) => (
               <option key={provider.id} value={provider.id}>{provider.provider_name} ({provider.model_name})</option>
             ))}
           </select>

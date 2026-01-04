@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-export default function SettingsPanel({ providers, onUpdate }) {
+export default function SettingsPanel({ providers = [], onUpdate }) {
   const [defaults, setDefaults] = useState({
     analysis: "",
     summarization: "",
@@ -29,7 +29,7 @@ export default function SettingsPanel({ providers, onUpdate }) {
           Default provider for analysis
           <select value={defaults.analysis} onChange={(e) => setDefaults({ ...defaults, analysis: e.target.value })}>
             <option value="">Select provider</option>
-            {providers.map((provider) => (
+            {providers?.map((provider) => (
               <option key={provider.id} value={provider.id}>{provider.provider_name}</option>
             ))}
           </select>
