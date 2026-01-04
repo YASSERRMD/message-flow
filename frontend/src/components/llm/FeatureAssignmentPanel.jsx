@@ -31,31 +31,44 @@ export default function FeatureAssignmentPanel({ features = [], providers = [], 
           <p className="panel-sub">Primary and fallback ordering per feature</p>
         </div>
       </header>
-      <div className="feature-assign">
-        <label>
-          Feature
-          <select value={selectedFeature} onChange={(e) => setSelectedFeature(e.target.value)}>
-            <option value="">Select feature</option>
+      <div className="feature-assign" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 100px auto', gap: '16px', alignItems: 'end', marginBottom: '24px' }}>
+        <div className="form-group" style={{ marginBottom: 0 }}>
+          <label className="form-label">Feature</label>
+          <select
+            className="form-input"
+            value={selectedFeature}
+            onChange={(e) => setSelectedFeature(e.target.value)}
+          >
             <option value="">Select feature</option>
             {features?.map((feature) => (
               <option key={feature.feature} value={feature.feature}>{feature.feature}</option>
             ))}
           </select>
-        </label>
-        <label>
-          Provider
-          <select value={providerId} onChange={(e) => setProviderId(e.target.value)}>
+        </div>
+        <div className="form-group" style={{ marginBottom: 0 }}>
+          <label className="form-label">Provider</label>
+          <select
+            className="form-input"
+            value={providerId}
+            onChange={(e) => setProviderId(e.target.value)}
+          >
             <option value="">Select provider</option>
             {providers?.map((provider) => (
               <option key={provider.id} value={provider.id}>{provider.provider_name} ({provider.model_name})</option>
             ))}
           </select>
-        </label>
-        <label>
-          Priority
-          <input type="number" min="1" value={priority} onChange={(e) => setPriority(e.target.value)} />
-        </label>
-        <button className="primary" onClick={handleAssign}>Assign</button>
+        </div>
+        <div className="form-group" style={{ marginBottom: 0 }}>
+          <label className="form-label">Priority</label>
+          <input
+            type="number"
+            className="form-input"
+            min="1"
+            value={priority}
+            onChange={(e) => setPriority(e.target.value)}
+          />
+        </div>
+        <button className="action-btn primary" onClick={handleAssign} style={{ height: '42px' }}>Assign</button>
       </div>
       <div className="feature-list">
         {selectedProviders.map((item) => {
