@@ -60,6 +60,67 @@ export default function DashboardPage() {
     }
   }, [token]);
 
+  // Request browser notification permission on mount
+  useEffect(() => {
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+  }, []);
+
+  // WebSocket for real-time notifications
+  useEffect(() => {
+    if (!token || authStatus !== "signed-in") return;
+
+    const wsUrl = `${WS_BASE}/ws?tenant_id=${tenantId}`;
+    const ws = new WebSocket(wsUrl);
+
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === "message.received") {
+          // Reload conversations to get updated unread counts
+          loadDashboard();
+
+          // Show desktop notification if permission granted
+          if (Notification.permission === "granted") {
+            const notification = new Notification("New WhatsApp Message", {
+              body: `New message in conversation ${data.conversation_id}`,
+              icon: "/logo.png",
+              tag: `msg-${data.message_id}`
+            });
+
+            notification.onclick = () => {
+              window.focus();
+              // Find and select the conversation
+              const conv = conversations.find(c => c.id === data.conversation_id);
+              if (conv) {
+                setSelectedConversation(conv);
+                loadMessages(conv.id);
+              }
+            };
+
+            // Auto-close after 5 seconds
+            setTimeout(() => notification.close(), 5000);
+          }
+
+          // Play notification sound
+          try {
+            const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjdrkLO5p4xjQUFufqKutJpxRTovZpCnrqaAYEs0RmyDmKylln9aQTlWa3yCi4+KhHloTDVDWWRqb3J2d3Z2cnNxbWhdUU5SXWZtcnd4eXh3dXNwbGRYTUlMV2Nqb3N1dnZ2dHJuaGFVS0hNWGNrbXFzdHRzcm9sZl1TSEZOWWNpbXBxcXFwb2xpY1tRS0ZMVl9laWxub3BvbWxpZV5WTEZMU1xhZWlrbW5tbWtpZmFaU0xJTVRbYGRnaWpqamlnZWBbVE1KTlVbX2NmZ2hoZ2ZlYl9aVE9MT1RaXWFkZWZnZmVkYV5bVlFNT1RZXWBjZGVlZWRjYV5bV1NPT1NYXGBiY2RkZGNiYF5bV1RQT1NXW19hYmNjY2JhX11aVlJQUVRYW15gYWJiYmFgXlxZVlNRUlVYW11fYGBgX19eXFpXVFJSVFZZW11eX19fXl5dW1lWVFNTVVdZW1xdXl5eXV1bWldVVFRVV1laXF1dXl1dXFtaV1VUVFVWWFlaW1xcXFxbW1lYVlVUVVZXWFlbW1tcW1taWVhWVVRVVVdYWVpbW1tbW1pZWFZVVVVWV1hZWltbW1taWllYV1ZVVVZXWFhZWltbW1pZWVhXVlVVVldXWFlZWlpaWllZV1dWVVZWV1dYWVlaWlpZWVhXV1ZWVVZXV1hYWVlaWVlYWFdXVlZWV1dYWVlZWVlZWFhXV1ZWVldXWFhZWFlZWVhYV1dXVldXV1hYWVlZWFhYV1dXVldXWFhYWVlZWFhXV1dXV1dXWFhYWVlYWFhXV1dXV1dYWFhYWFhYWFdXV1dXV1dYWFhYWFhXV1dXV1dXV1hYWFhYWFdXV1dXV1dXWFhYWFhYV1dXV1dXV1dYWFhYWFhXV1dXV1dXV1dYWFhYV1dXV1dXV1dXV1hYWFhXV1dXV1dXV1dXWFhXV1dXV1dXV1dXV1dYWFdXV1dXV1dXV1dXV1hYV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXVw==');
+            audio.volume = 0.3;
+            audio.play().catch(() => { });
+          } catch (e) { }
+        }
+      } catch (e) { }
+    };
+
+    ws.onerror = () => { };
+    ws.onclose = () => { };
+
+    return () => {
+      ws.close();
+    };
+  }, [token, authStatus, tenantId, conversations]);
+
   const headers = useMemo(() => {
     const base = {
       "Content-Type": "application/json",
