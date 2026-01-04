@@ -162,7 +162,7 @@ func (s *Syncer) upsertConversation(ctx context.Context, tenantID int64, client 
 
 	// Fetch profile picture
 	var profilePicURL string
-	if params, err := client.GetProfilePictureInfo(chatJID, &whatsmeow.GetProfilePictureParams{Preview: true}); err == nil && params != nil {
+	if params, err := client.GetProfilePictureInfo(ctx, chatJID, &whatsmeow.GetProfilePictureParams{Preview: true}); err == nil && params != nil {
 		profilePicURL = params.URL
 	}
 
