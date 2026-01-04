@@ -56,7 +56,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!token || authStatus !== "signed-in") return;
-    const wsUrl = `${WS_BASE}/ws?tenant_id=${tenantId}`;
+    const wsUrl = `${WS_BASE}/ws?tenant_id=${tenantId}&token=${token}`;
     const ws = new WebSocket(wsUrl);
     ws.onmessage = (event) => {
       try {
@@ -89,7 +89,7 @@ export default function DashboardPage() {
     try {
       const [convRes, summRes] = await Promise.all([
         fetch(`${API_BASE}/conversations`, { headers: authHeaders }),
-        fetch(`${API_BASE}/summary`, { headers: authHeaders })
+        fetch(`${API_BASE}/dashboard`, { headers: authHeaders })
       ]);
       if (convRes.ok) {
         const data = await convRes.json();
@@ -97,7 +97,7 @@ export default function DashboardPage() {
       }
       if (summRes.ok) {
         const data = await summRes.json();
-        setSummary(data.data || defaultSummary);
+        setSummary(data || defaultSummary);
       }
     } catch { }
   }, [token, authHeaders]);
@@ -213,7 +213,8 @@ export default function DashboardPage() {
         setReplyText("");
         loadMessages(selectedConversation.id, 1);
       } else {
-        alert("Failed to send message");
+        const err = await res.json();
+        alert("Failed to send message: " + (err.error || "Unknown error"));
       }
     } catch (err) {
       alert("Error sending message: " + err.message);
