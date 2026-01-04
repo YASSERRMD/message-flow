@@ -286,47 +286,20 @@ export default function LLMProviderDashboard({ token, csrf }) {
   };
 
   return (
-                    ))
-}
-                  </ul >
-                </div >
-              )}
-
-{/* Feature Assignment */ }
-<div className="connect-card" style={{ maxWidth: '100%', padding: '24px', textAlign: 'left' }}>
-  <h2 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '16px' }}>Routing Rules</h2>
-  <FeatureAssignmentPanel features={features} providers={providers} />
-</div>
-
-{/* Global Settings */ }
-<div className="connect-card" style={{ maxWidth: '100%', padding: '24px', textAlign: 'left' }}>
-  <h2 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '16px' }}>Global Settings</h2>
-  <SettingsPanel />
-</div>
-
-            </div >
-          </div >
-
-        </div >
-      </div >
-
-  { showAdd && <AddProviderModal onClose={() => setShowAdd(false)} onSave={loadAll} token={token} />}
-
-{
-  selectedProvider && (
-    <div className="summary-modal-overlay">
-      <div className="summary-modal" style={{ maxWidth: '800px' }}>
-        <div className="summary-header">
-          <h3>{selectedProvider.provider_name} Details</h3>
-          <button className="close-btn" onClick={() => setSelectedProvider(null)}><i className="fas fa-times"></i></button>
+    <div className="llm-dashboard-container">
+      {/* Header Section */}
+      <div className="llm-header-actions">
+        <div className="llm-header-left">
+          <h1>Provider Management</h1>
+          <p>Track health, cost, and performance for every model</p>
         </div>
-        <div className="summary-content">
-          <ProviderDetailsPanel
-            provider={selectedProvider}
-            onClose={() => setSelectedProvider(null)}
-            onUpdate={handleUpdate}
-            headers={headers}
-          />
+        <div className="llm-header-right">
+          <button className="llm-btn llm-btn-primary" onClick={() => setShowAdd(true)}>
+            <i className="fas fa-plus"></i> Add Provider
+          </button>
+          <button className="llm-btn llm-btn-secondary" onClick={loadAll}>
+            <i className="fas fa-sync"></i> Refresh
+          </button>
         </div>
       </div>
     </div>
