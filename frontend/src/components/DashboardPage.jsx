@@ -370,8 +370,12 @@ export default function DashboardPage() {
                   className={`conversation-item ${selectedConversation?.id === conv.id ? "active" : ""}`}
                   onClick={() => selectConversation(conv)}
                 >
-                  <div className="conv-avatar" style={getAvatarStyle(name)}>
-                    {getInitials(name)}
+                  <div className="conv-avatar" style={!conv.profile_picture_url ? getAvatarStyle(name) : {}}>
+                    {conv.profile_picture_url ? (
+                      <img src={conv.profile_picture_url} alt={name} className="avatar-img" />
+                    ) : (
+                      getInitials(name)
+                    )}
                   </div>
                   <div className="conv-content">
                     <div className="conv-header">
@@ -395,8 +399,12 @@ export default function DashboardPage() {
             <>
               <div className="chat-header">
                 <div className="chat-user-info">
-                  <div className="chat-avatar" style={getAvatarStyle(selectedConversation.contact_name || "")}>
-                    {getInitials(selectedConversation.contact_name || selectedConversation.whatsapp_jid)}
+                  <div className="chat-avatar" style={!selectedConversation.profile_picture_url ? getAvatarStyle(selectedConversation.contact_name || "") : {}}>
+                    {selectedConversation.profile_picture_url ? (
+                      <img src={selectedConversation.profile_picture_url} alt="Profile" className="avatar-img" />
+                    ) : (
+                      getInitials(selectedConversation.contact_name || selectedConversation.whatsapp_jid)
+                    )}
                   </div>
                   <div className="chat-details">
                     <h3>{selectedConversation.contact_name || selectedConversation.whatsapp_jid?.split("@")[0]}</h3>

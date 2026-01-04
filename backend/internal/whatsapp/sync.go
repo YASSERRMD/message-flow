@@ -102,15 +102,12 @@ func (s *Syncer) handleMessage(ctx context.Context, tenantID int64, client *what
 		content = "[" + mediaInfo.Type + "]"
 	}
 
-	contactNumber := chatJID.String()
-	if chatJID.User != "" {
-		contactNumber = chatJID.User
-	}
+	// contactNumber removed as it is derived inside upsertConversation
 	if contactName == "" {
 		contactName = strings.TrimSpace(info.PushName)
 	}
 
-	conversationID, err := s.upsertConversation(ctx, tenantID, contactNumber, contactName, info.Timestamp)
+	conversationID, err := s.upsertConversation(ctx, tenantID, client, chatJID, contactName, info.Timestamp)
 	if err != nil {
 		log.Printf("[Syncer] upsertConversation error: %v", err)
 		return
@@ -144,14 +141,40 @@ func (s *Syncer) handleMessage(ctx context.Context, tenantID int64, client *what
 	}
 }
 
-func (s *Syncer) upsertConversation(ctx context.Context, tenantID int64, contactNumber, contactName string, lastMessageAt time.Time) (int64, error) {
+func (s *Syncer) upsertConversation(ctx context.Context, tenantID int64, client *whatsmeow.Client, chatJID types.JID, contactName string, lastMessageAt time.Time) (int64, error) {
+	contactNumber := chatJID.User
+	if chatJID.User == "" {
+		contactNumber = chatJID.String()
+	}
+
+	// Try to get better name from store if missing
+	if contactName == "" || contactName == contactNumber {
+		if info, err := client.Store.Contacts.GetContact(ctx, chatJID); err == nil && info.Found {
+			if info.PushName != "" {
+				contactName = info.PushName
+			} else if info.FullName != "" {
+				contactName = info.FullName
+			} else if info.FirstName != "" {
+				contactName = info.FirstName
+			}
+		}
+	}
+
+	// Fetch profile picture
+	var profilePicURL string
+	if params, err := client.GetProfilePictureInfo(chatJID, &whatsmeow.GetProfilePictureParams{Preview: true}); err == nil && params != nil {
+		profilePicURL = params.URL
+	}
+
 	var id int64
 	var existingName string
+	var existingPic *string
+
 	err := s.Store.WithTenantConn(ctx, tenantID, func(conn *pgxpool.Conn) error {
 		err := conn.QueryRow(ctx, `
-			SELECT id, contact_name
+			SELECT id, contact_name, profile_picture_url
 			FROM conversations
-			WHERE tenant_id=$1 AND contact_number=$2`, tenantID, contactNumber).Scan(&id, &existingName)
+			WHERE tenant_id=$1 AND contact_number=$2`, tenantID, contactNumber).Scan(&id, &existingName, &existingPic)
 		if err != nil {
 			if err == pgx.ErrNoRows {
 				name := contactName
@@ -159,20 +182,28 @@ func (s *Syncer) upsertConversation(ctx context.Context, tenantID int64, contact
 					name = contactNumber
 				}
 				return conn.QueryRow(ctx, `
-					INSERT INTO conversations (tenant_id, contact_number, contact_name, last_message_at, created_at)
-					VALUES ($1, $2, $3, $4, $5)
-					RETURNING id`, tenantID, contactNumber, name, lastMessageAt, time.Now().UTC()).Scan(&id)
+					INSERT INTO conversations (tenant_id, contact_number, contact_name, last_message_at, profile_picture_url, created_at)
+					VALUES ($1, $2, $3, $4, $5, $6)
+					RETURNING id`, tenantID, contactNumber, name, lastMessageAt, profilePicURL, time.Now().UTC()).Scan(&id)
 			}
 			return err
 		}
+
 		name := existingName
-		if name == "" && contactName != "" {
+		if (name == "" || name == contactNumber) && contactName != "" && contactName != contactNumber {
 			name = contactName
 		}
+
+		// Always update profile pic if we got one, otherwise keep existing
+		pic := existingPic
+		if profilePicURL != "" {
+			pic = &profilePicURL
+		}
+
 		_, err = conn.Exec(ctx, `
 			UPDATE conversations
-			SET last_message_at=$1, contact_name=$2
-			WHERE id=$3 AND tenant_id=$4`, lastMessageAt, name, id, tenantID)
+			SET last_message_at=$1, contact_name=$2, profile_picture_url=$3
+			WHERE id=$4 AND tenant_id=$5`, lastMessageAt, name, pic, id, tenantID)
 		return err
 	})
 	return id, err

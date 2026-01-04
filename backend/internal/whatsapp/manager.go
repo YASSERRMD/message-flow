@@ -204,6 +204,11 @@ func (m *Manager) SendMessage(ctx context.Context, tenantID int64, recipientJID 
 		return err
 	}
 
+	// Check if user is on WhatsApp to prime the cache (fixes no LID found error)
+	if jid.Server == types.DefaultUserServer {
+		_, _ = client.IsOnWhatsApp(ctx, []string{jid.User})
+	}
+
 	_, err = client.SendMessage(ctx, jid, &waE2E.Message{
 		Conversation: &content,
 	})

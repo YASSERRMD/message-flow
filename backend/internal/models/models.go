@@ -12,12 +12,13 @@ type User struct {
 }
 
 type Conversation struct {
-	ID            int64      `json:"id"`
-	TenantID      int64      `json:"tenant_id"`
-	ContactNumber string     `json:"contact_number"`
-	ContactName   *string    `json:"contact_name"`
-	LastMessageAt *time.Time `json:"last_message_at"`
-	CreatedAt     time.Time  `json:"created_at"`
+	ID                int64      `json:"id"`
+	TenantID          int64      `json:"tenant_id"`
+	ContactNumber     string     `json:"contact_number"`
+	ContactName       *string    `json:"contact_name"`
+	LastMessageAt     *time.Time `json:"last_message_at"`
+	CreatedAt         time.Time  `json:"created_at"`
+	ProfilePictureURL *string    `json:"profile_picture_url"`
 }
 
 type Message struct {

@@ -21,7 +21,7 @@ func (a *API) ListConversations(w http.ResponseWriter, r *http.Request) {
 	conversations := []models.Conversation{}
 	if err := a.Store.WithTenantConn(ctx, tenantID, func(conn *pgxpool.Conn) error {
 		rows, err := conn.Query(ctx, `
-			SELECT id, tenant_id, contact_number, contact_name, last_message_at, created_at
+			SELECT id, tenant_id, contact_number, contact_name, last_message_at, created_at, profile_picture_url
 			FROM conversations
 			WHERE tenant_id=$1
 			ORDER BY last_message_at DESC NULLS LAST, created_at DESC
@@ -33,7 +33,7 @@ func (a *API) ListConversations(w http.ResponseWriter, r *http.Request) {
 
 		for rows.Next() {
 			var convo models.Conversation
-			if err := rows.Scan(&convo.ID, &convo.TenantID, &convo.ContactNumber, &convo.ContactName, &convo.LastMessageAt, &convo.CreatedAt); err != nil {
+			if err := rows.Scan(&convo.ID, &convo.TenantID, &convo.ContactNumber, &convo.ContactName, &convo.LastMessageAt, &convo.CreatedAt, &convo.ProfilePictureURL); err != nil {
 				return err
 			}
 			conversations = append(conversations, convo)
