@@ -155,13 +155,21 @@ func (s *Syncer) UpsertConversation(ctx context.Context, tenantID int64, client 
 
 	// Try to get better name from store if missing
 	if contactName == "" || contactName == contactNumber {
-		if info, err := client.Store.Contacts.GetContact(ctx, chatJID); err == nil && info.Found {
-			if info.PushName != "" {
-				contactName = info.PushName
-			} else if info.FullName != "" {
-				contactName = info.FullName
-			} else if info.FirstName != "" {
-				contactName = info.FirstName
+		if chatJID.Server == "g.us" {
+			if groupInfo, err := client.GetGroupInfo(ctx, chatJID); err == nil && groupInfo != nil {
+				if groupInfo.Name != "" {
+					contactName = groupInfo.Name
+				}
+			}
+		} else {
+			if info, err := client.Store.Contacts.GetContact(ctx, chatJID); err == nil && info.Found {
+				if info.FullName != "" {
+					contactName = info.FullName
+				} else if info.PushName != "" {
+					contactName = info.PushName
+				} else if info.FirstName != "" {
+					contactName = info.FirstName
+				}
 			}
 		}
 	}

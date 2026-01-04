@@ -286,7 +286,7 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
       { bg: "#fff7ed", color: "#c2410c" },
       { bg: "#eff6ff", color: "#1e40af" }
     ];
-    const index = (name || "").charCodeAt(0) % colors.length;
+    const index = (name || "?").charCodeAt(0) % colors.length;
     return { background: colors[index].bg, color: colors[index].color };
   };
 

@@ -1,6 +1,7 @@
 package llm
 
 import (
+	"strings"
 	"sync"
 
 	"message-flow/backend/internal/llm/providers"
@@ -25,15 +26,21 @@ func (f *Factory) CreateProvider(config *ProviderConfig) Provider {
 	}
 
 	var provider Provider
-	switch config.ProviderName {
-	case "claude":
+	// Normalize provider name to lowercase for matching
+	name := strings.ToLower(config.ProviderName)
+	switch name {
+	case "claude", "anthropic":
 		provider = providers.NewClaudeProvider(config)
 	case "openai":
 		provider = providers.NewOpenAIProvider(config)
-	case "azure_openai":
+	case "azure_openai", "azureopenai":
 		provider = providers.NewOpenAIProvider(config)
 	case "cohere":
 		provider = providers.NewCohereProvider(config)
+	case "google", "gemini":
+		// Use OpenAI provider with Gemini-compatible base URL
+		// User should configure base_url to point to Gemini API or use an OpenAI-compatible gateway
+		provider = providers.NewOpenAIProvider(config)
 	default:
 		return nil
 	}

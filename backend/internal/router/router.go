@@ -100,6 +100,11 @@ func (rt *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			rt.api.ListConversations(w, r)
 			return
 		}
+	case path == "/api/v1/conversations/summarize":
+		if r.Method == http.MethodPost {
+			rt.api.SummarizeConversation(w, r)
+			return
+		}
 	case strings.HasPrefix(path, "/api/v1/conversations/"):
 		segments := strings.Split(strings.TrimPrefix(path, "/api/v1/conversations/"), "/")
 		if len(segments) == 2 && segments[1] == "messages" {
@@ -173,11 +178,7 @@ func (rt *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			rt.api.GetDailySummary(w, r)
 			return
 		}
-	case path == "/api/v1/conversations/summarize":
-		if r.Method == http.MethodPost {
-			rt.api.SummarizeConversation(w, r)
-			return
-		}
+
 	case path == "/api/v1/llm/providers":
 		switch r.Method {
 		case http.MethodPost:
@@ -211,7 +212,7 @@ func (rt *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					case http.MethodGet:
 						rt.api.GetProvider(w, r, id)
 						return
-					case http.MethodPatch:
+					case http.MethodPut, http.MethodPatch:
 						rt.api.UpdateProvider(w, r, id)
 						return
 					case http.MethodDelete:

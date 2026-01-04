@@ -44,7 +44,8 @@ export default function MessagesList({
         const data = await res.json();
         setSummary(data);
       } else {
-        setSummary({ error: "Failed to generate summary" });
+        const errorData = await res.json().catch(() => ({}));
+        setSummary({ error: errorData.error || "Failed to generate summary" });
       }
     } catch (err) {
       setSummary({ error: "Network error" });

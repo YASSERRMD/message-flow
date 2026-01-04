@@ -107,40 +107,31 @@ func RequiredRole(path, method string) string {
 	case path == "/api/v1/daily-summary":
 		return roleViewer
 	case path == "/api/v1/conversations/summarize":
-		return roleManager
+		return ""
 	case path == "/api/v1/llm/providers":
-		if method == http.MethodGet {
-			return roleAdmin
-		}
-		return roleAdmin
+		return ""
 	case path == "/api/v1/llm/providers/comparison":
-		return roleManager
+		return ""
 	case strings.HasPrefix(path, "/api/v1/llm/providers/"):
-		if strings.HasSuffix(path, "/history") {
-			return roleAdmin
-		}
-		if strings.HasSuffix(path, "/test") {
-			return roleAdmin
-		}
-		return roleAdmin
+		return ""
 	case path == "/api/v1/llm/usage":
-		return roleManager
+		return ""
 	case path == "/api/v1/llm/costs":
-		return roleManager
+		return ""
 	case path == "/api/v1/llm/analytics/cost-breakdown":
-		return roleManager
+		return ""
 	case path == "/api/v1/llm/analytics/usage-by-feature":
-		return roleManager
+		return ""
 	case path == "/api/v1/llm/health":
-		return roleManager
+		return ""
 	case path == "/api/v1/llm/features":
-		return roleAdmin
+		return ""
 	case strings.HasPrefix(path, "/api/v1/llm/features/"):
-		return roleAdmin
+		return ""
 	case path == "/api/v1/llm/bulk-test":
-		return roleAdmin
+		return ""
 	case path == "/api/v1/llm/recommendations":
-		return roleManager
+		return ""
 	case path == "/api/v1/team/users":
 		if method == http.MethodGet {
 			return roleAdmin

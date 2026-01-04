@@ -78,12 +78,22 @@ func (r *Router) GetDefaultProvider(ctx context.Context, tenantID int64) (Provid
 	if provider, ok := r.cache.get(key); ok {
 		return provider, nil
 	}
+	fmt.Println("DEBUG Router: Getting default provider for tenant:", tenantID)
 	config, err := r.db.GetDefaultProvider(ctx, tenantID)
 	if err != nil || config == nil {
-		return nil, errors.New("default provider not found")
+		fmt.Println("DEBUG Router: No default provider, error:", err, "- trying ListProviders fallback")
+		// Fallback: Get first available provider
+		list, err2 := r.db.ListProviders(ctx, tenantID)
+		fmt.Println("DEBUG Router: ListProviders returned", len(list), "providers, error:", err2)
+		if err2 != nil || len(list) == 0 {
+			return nil, errors.New("no providers available")
+		}
+		config = &list[0]
+		fmt.Println("DEBUG Router: Using fallback provider:", config.ProviderName, config.ModelName)
 	}
 	provider := r.factory.CreateProvider(config)
 	if provider == nil {
+		fmt.Println("DEBUG Router: Factory returned nil for provider:", config.ProviderName)
 		return nil, errors.New("provider not supported")
 	}
 	r.cache.set(key, provider)

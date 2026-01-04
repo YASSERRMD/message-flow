@@ -276,7 +276,8 @@ func (m *Manager) syncContacts(session *Session) {
 
 	count := 0
 	for jid, info := range contacts {
-		if jid.Server != "s.whatsapp.net" {
+		// Allow both private chats (s.whatsapp.net) and groups (g.us)
+		if jid.Server != "s.whatsapp.net" && jid.Server != "g.us" {
 			continue
 		}
 

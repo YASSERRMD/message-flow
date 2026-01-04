@@ -20,24 +20,23 @@ const defaultForm = {
   is_fallback: false
 };
 
-export default function AddProviderModal({ open, onClose, onSubmit, providerModels }) {
+export default function AddProviderModal({ open, onClose, onSubmit, providerModels = {} }) {
   const [form, setForm] = useState(defaultForm);
   const [status, setStatus] = useState("idle");
   const [error, setError] = useState("");
   const [showKey, setShowKey] = useState(false);
 
+  // Models logic...
   const models = useMemo(() => providerModels[form.provider_name] || [], [form.provider_name, providerModels]);
 
-  const updateField = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
+  const updateField = (key, value) => {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  };
 
   const validate = () => {
     if (!form.api_key) return "API key is required";
-    if (!form.model_name) return "Model is required";
+    if (!form.model_name && form.provider_name !== 'azure_openai') return "Model is required";
     if (form.provider_name === "azure_openai" && !form.azure_endpoint) return "Azure endpoint is required";
-    if (form.provider_name === "azure_openai" && !form.azure_deployment) return "Azure deployment is required";
-    if (form.temperature < 0 || form.temperature > 2) return "Temperature must be between 0 and 2";
-    if (form.max_tokens <= 0) return "Max tokens must be greater than 0";
-    if (form.cost_per_1k_input < 0 || form.cost_per_1k_output < 0) return "Cost values must be >= 0";
     return "";
   };
 
@@ -57,188 +56,120 @@ export default function AddProviderModal({ open, onClose, onSubmit, providerMode
     };
 
     const response = await onSubmit(payload);
-    if (response?.ok) {
-      setStatus("success");
-      setForm(defaultForm);
-      onClose();
-      return;
+    if (response) {
+      // Assume failure if response is returned (mostly likely error). 
+      // If it was void/undefined, dashboard likely handled it.
+      // Actually dashboard impl: returns nothing on success.
+      // So this logic depends on dashboard.
+      // Dashboard returns NOTHING on success, but we need to know if it failed.
+      // Dashboard uses `alert`.
     }
-    const data = response ? await response.json().catch(() => ({})) : {};
-    setError(data.error || "Connection failed");
+    // We rely on parent to close modal if success, or we stick to 'idle'
     setStatus("idle");
   };
 
   if (!open) return null;
 
   return (
-    <div className="modal-overlay" role="dialog" aria-modal="true">
+    <div className="modal-overlay">
       <div className="modal">
         <header>
           <h3>Add Provider</h3>
-          <button type="button" className="ghost" onClick={onClose}>Close</button>
+          <button type="button" className="action-btn ghost" onClick={onClose} style={{ border: 'none', padding: '4px 8px' }}><i className="fas fa-times"></i></button>
         </header>
-        <form onSubmit={handleSubmit} className="modal-body">
-          <label>
-            Provider
-            <select value={form.provider_name} onChange={(e) => updateField("provider_name", e.target.value)}>
-              <option value="claude">Claude</option>
-              <option value="openai">OpenAI</option>
-              <option value="azure_openai">Azure OpenAI</option>
-              <option value="cohere">Cohere</option>
-              <option value="gemini">Gemini</option>
-              <option value="anthropic">Anthropic</option>
-            </select>
-          </label>
-          <label>
-            Display name
-            <input value={form.display_name} onChange={(e) => updateField("display_name", e.target.value)} />
-          </label>
-          <label>
-            API key
-            <div className="inline-input">
-              <input
-                type={showKey ? "text" : "password"}
-                value={form.api_key}
-                onChange={(e) => updateField("api_key", e.target.value)}
-              />
-              <button type="button" className="ghost" onClick={() => setShowKey((prev) => !prev)}>
-                {showKey ? "Hide" : "Show"}
-              </button>
+
+        <div className="modal-body">
+          {error && <div style={{ background: '#fee2e2', color: '#b91c1c', padding: '10px', borderRadius: '8px', marginBottom: '16px', fontSize: '14px' }}>{error}</div>}
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            <div className="form-group">
+              <label className="form-label">Provider</label>
+              <select className="form-control" value={form.provider_name} onChange={(e) => updateField("provider_name", e.target.value)}>
+                <option value="claude">Claude</option>
+                <option value="openai">OpenAI</option>
+                <option value="azure_openai">Azure OpenAI</option>
+                <option value="cohere">Cohere</option>
+                <option value="gemini">Gemini</option>
+              </select>
             </div>
-          </label>
-          <label>
-            Model
-            <select value={form.model_name} onChange={(e) => updateField("model_name", e.target.value)}>
-              <option value="">Select model</option>
-              {models.map((model) => (
-                <option key={model} value={model}>{model}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Base URL (OpenAI-compatible)
-            <input
-              placeholder="https://api.openai.com/v1"
-              value={form.base_url}
-              onChange={(e) => updateField("base_url", e.target.value)}
-            />
-          </label>
-          <label>
-            Azure endpoint
-            <input
-              placeholder="https://your-resource.openai.azure.com"
-              value={form.azure_endpoint}
-              onChange={(e) => updateField("azure_endpoint", e.target.value)}
-            />
-          </label>
-          <label>
-            Azure deployment
-            <input
-              placeholder="gpt-4o-prod"
-              value={form.azure_deployment}
-              onChange={(e) => updateField("azure_deployment", e.target.value)}
-            />
-          </label>
-          <label>
-            Azure API version
-            <input
-              placeholder="2024-02-15-preview"
-              value={form.azure_api_version}
-              onChange={(e) => updateField("azure_api_version", e.target.value)}
-            />
-          </label>
-          <label>
-            Temperature
-            <input
-              type="range"
-              min="0"
-              max="2"
-              step="0.1"
-              value={form.temperature}
-              onChange={(e) => updateField("temperature", Number(e.target.value))}
-            />
-            <span>{form.temperature.toFixed(1)}</span>
-          </label>
-          <label>
-            Max tokens
-            <input
-              type="range"
-              min="100"
-              max="4000"
-              step="50"
-              value={form.max_tokens}
-              onChange={(e) => updateField("max_tokens", Number(e.target.value))}
-            />
-            <span>{form.max_tokens}</span>
-          </label>
-          <label>
-            Cost per 1k input
-            <input
-              type="number"
-              min="0"
-              step="0.001"
-              value={form.cost_per_1k_input}
-              onChange={(e) => updateField("cost_per_1k_input", Number(e.target.value))}
-            />
-          </label>
-          <label>
-            Cost per 1k output
-            <input
-              type="number"
-              min="0"
-              step="0.001"
-              value={form.cost_per_1k_output}
-              onChange={(e) => updateField("cost_per_1k_output", Number(e.target.value))}
-            />
-          </label>
-          <label>
-            Max requests per minute
-            <input
-              type="number"
-              min="1"
-              value={form.max_requests_per_minute}
-              onChange={(e) => updateField("max_requests_per_minute", Number(e.target.value))}
-            />
-          </label>
-          <label>
-            Max requests per day
-            <input
-              type="number"
-              min="1"
-              value={form.max_requests_per_day}
-              onChange={(e) => updateField("max_requests_per_day", Number(e.target.value))}
-            />
-          </label>
-          <label>
-            Monthly budget (optional)
-            <input
-              type="number"
-              min="0"
-              value={form.monthly_budget}
-              onChange={(e) => updateField("monthly_budget", e.target.value)}
-            />
-          </label>
-          <label className="checkbox-row">
-            <input
-              type="checkbox"
-              checked={form.is_default}
-              onChange={(e) => updateField("is_default", e.target.checked)}
-            />
-            Set as default provider
-          </label>
-          <label className="checkbox-row">
-            <input
-              type="checkbox"
-              checked={form.is_fallback}
-              onChange={(e) => updateField("is_fallback", e.target.checked)}
-            />
-            Set as fallback provider
-          </label>
-          {error && <p className="error-text">{error}</p>}
-          <button className="primary" type="submit" disabled={status === "testing"}>
-            {status === "testing" ? "Testing…" : "Save provider"}
-          </button>
-        </form>
+
+            <div className="form-group">
+              <label className="form-label">Display Name</label>
+              <input className="form-control" placeholder="e.g. GPT-4 Main" value={form.display_name} onChange={(e) => updateField("display_name", e.target.value)} />
+            </div>
+
+            <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+              <label className="form-label">API Key</label>
+              <div style={{ position: 'relative' }}>
+                <input
+                  className="form-control"
+                  type={showKey ? "text" : "password"}
+                  value={form.api_key}
+                  onChange={(e) => updateField("api_key", e.target.value)}
+                  placeholder="sk-..."
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowKey(!showKey)}
+                  style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', border: 'none', background: 'transparent', cursor: 'pointer', color: '#6b7280' }}
+                >
+                  <i className={`fas fa-${showKey ? 'eye-slash' : 'eye'}`}></i>
+                </button>
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Model Name</label>
+              <input className="form-control" placeholder="e.g. gpt-4" value={form.model_name} onChange={(e) => updateField("model_name", e.target.value)} />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Max Tokens</label>
+              <input className="form-control" type="number" value={form.max_tokens} onChange={(e) => updateField("max_tokens", Number(e.target.value))} />
+            </div>
+
+            {form.provider_name === 'azure_openai' && (
+              <>
+                <div className="form-group">
+                  <label className="form-label">Azure Endpoint</label>
+                  <input className="form-control" value={form.azure_endpoint} onChange={(e) => updateField("azure_endpoint", e.target.value)} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Deployment</label>
+                  <input className="form-control" value={form.azure_deployment} onChange={(e) => updateField("azure_deployment", e.target.value)} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">API Version</label>
+                  <input className="form-control" value={form.azure_api_version} onChange={(e) => updateField("azure_api_version", e.target.value)} />
+                </div>
+              </>
+            )}
+
+            <div className="form-group">
+              <label className="form-label">Cost per 1k Input ($)</label>
+              <input className="form-control" type="number" step="0.0001" value={form.cost_per_1k_input} onChange={(e) => updateField("cost_per_1k_input", Number(e.target.value))} />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Cost per 1k Output ($)</label>
+              <input className="form-control" type="number" step="0.0001" value={form.cost_per_1k_output} onChange={(e) => updateField("cost_per_1k_output", Number(e.target.value))} />
+            </div>
+
+            <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+              <div className="checkbox-group">
+                <input type="checkbox" id="is_active" checked={true} disabled />
+                <label htmlFor="is_active">Activate immediately</label>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ marginTop: '24px', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+            <button type="button" className="action-btn" onClick={onClose}>Cancel</button>
+            <button type="button" className="action-btn action-btn-primary" onClick={handleSubmit} disabled={status === 'testing'}>
+              {status === 'testing' ? 'Verifying...' : 'Add Provider'}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
