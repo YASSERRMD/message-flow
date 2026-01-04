@@ -15,11 +15,35 @@ const roleRank = {
   viewer: 1
 };
 
+const roleLabels = {
+  owner: "Owner",
+  admin: "Admin",
+  manager: "Manager",
+  member: "Member",
+  viewer: "Viewer"
+};
+
 export default function CollaborationPage({ token, csrf, role }) {
   const rank = roleRank[role] || 1;
+  const hasAnyFeature = rank >= 2;
 
   return (
     <div className="collab-layout">
+      {!hasAnyFeature && (
+        <div className="empty-state-card">
+          <div className="empty-state-icon">👥</div>
+          <h3>Team Hub</h3>
+          <p>Welcome to the Team Hub! As a <strong>{roleLabels[role] || "Viewer"}</strong>, you currently have read-only access.</p>
+          <div className="feature-unlock-info">
+            <h4>Features available at higher roles:</h4>
+            <ul>
+              <li><strong>Member:</strong> Notifications, Activity Timeline</li>
+              <li><strong>Manager:</strong> Kanban Board, Analytics</li>
+              <li><strong>Admin:</strong> Team Management, Workflows, Integrations, Audit Logs</li>
+            </ul>
+          </div>
+        </div>
+      )}
       {rank >= 4 && <TeamManagementPage token={token} csrf={csrf} />}
       {rank >= 3 && <KanbanBoard token={token} csrf={csrf} />}
       {rank >= 4 && <WorkflowListPage token={token} csrf={csrf} />}
