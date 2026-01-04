@@ -35,23 +35,8 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
 
   // ... (lines 38-300 skipped)
 
-  // Not connected - show QR panel
-  if (authStatus !== "signed-in") {
-    return (
-      <div className="connect-screen">
-        <div className="connect-card">
-          {/* ... content ... */}
-          <div className="qr-box">
-            {/* ... qr content ... */}
-          </div>
-          {qrError && <div className="error-msg">{qrError}</div>}
-          <button className="connect-btn" onClick={startWhatsAppConnect} disabled={qrStatus === "loading"}>
-            {qrStatus === "loading" ? "Generating..." : "Generate QR Code"}
-          </button>
-        </div>
-      </div>
-    );
-  } const [replyText, setReplyText] = useState("");
+  // ... state declarations ...
+  const [replyText, setReplyText] = useState("");
   const [showSummary, setShowSummary] = useState(false);
   const [summaryData, setSummaryData] = useState(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
