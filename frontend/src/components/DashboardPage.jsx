@@ -605,60 +605,15 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
                         {summaryData.topics.map((topic, i) => <span key={i} className="topic-tag">{topic}</span>)}
                       </div>
                     </div>
-      {/* Summary Modal */}
-                  {showSummary && (
-                    <div className="summary-modal-overlay" onClick={() => setShowSummary(false)}>
-                      <div className="summary-modal" onClick={(e) => e.stopPropagation()}>
-                        <div className="summary-header">
-                          <h3>✨ Conversation Summary</h3>
-                          <button className="close-btn" onClick={() => setShowSummary(false)}>×</button>
-                        </div>
-                        <div className="summary-content">
-                          {summaryLoading ? (
-                            <div className="summary-loading">
-                              <div className="spinner"></div>
-                              <p>Analyzing conversation...</p>
-                            </div>
-                          ) : summaryData ? (
-                            <>
-                              <div className="summary-section">
-                                <h4>Summary</h4>
-                                <p>{summaryData.summary || "No summary available"}</p>
-                              </div>
-                              {/* ... other summary sections ... */}
-                              {summaryData.key_points?.length > 0 && (
-                                <div className="summary-section">
-                                  <h4>Key Points</h4>
-                                  <ul>
-                                    {summaryData.key_points.map((point, i) => <li key={i}>{point}</li>)}
-                                  </ul>
-                                </div>
-                              )}
-                              {summaryData.action_items?.length > 0 && (
-                                <div className="summary-section">
-                                  <h4>Action Items</h4>
-                                  <ul>
-                                    {summaryData.action_items.map((item, i) => <li key={i}>{item}</li>)}
-                                  </ul>
-                                </div>
-                              )}
-                              {summaryData.sentiment && (
-                                <div className="summary-section">
-                                  <h4>Sentiment</h4>
-                                  <span className={`sentiment-badge ${summaryData.sentiment.toLowerCase()}`}>
-                                    {summaryData.sentiment}
-                                  </span>
-                                </div>
-                              )}
-                              {summaryData.topics?.length > 0 && (
-                                <div className="summary-section">
-                                  <h4>Topics</h4>
-                                  <div className="topics-list">
-                                  </>
-                                  ) : (
-                                  <p>No summary data</p>
+                  )}
+                </>
+              ) : (
+                <p>No summary data</p>
               )}
-                                </div>
+            </div>
           </div>
-                        </div>
+        </div>
       )}
+    </>
+  );
+}
