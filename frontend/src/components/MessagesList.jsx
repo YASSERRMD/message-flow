@@ -204,6 +204,8 @@ export default function MessagesList({
           // Extract sender display name
           const senderDisplay = message.sender ? message.sender.split("@")[0] : "";
           const showSender = !isOutbound && isGroup && senderDisplay;
+          // Extract media info from metadata
+          const media = message.analysis?.media;
 
           return (
             <div key={message.id} className={`wa-message ${isOutbound ? "is-outbound" : ""}`}>
@@ -213,7 +215,52 @@ export default function MessagesList({
                     {senderDisplay}
                   </div>
                 )}
-                <p className="wa-message-text">{message.content}</p>
+
+                {/* Media rendering */}
+                {media?.has_media && (
+                  <div className={`wa-media wa-media-${media.media_type}`}>
+                    {media.media_type === "image" && (
+                      <div className="media-placeholder">
+                        <span className="media-icon">📷</span>
+                        <span className="media-label">Image</span>
+                      </div>
+                    )}
+                    {media.media_type === "video" && (
+                      <div className="media-placeholder">
+                        <span className="media-icon">🎬</span>
+                        <span className="media-label">Video {media.duration_seconds ? `(${Math.floor(media.duration_seconds / 60)}:${String(media.duration_seconds % 60).padStart(2, '0')})` : ""}</span>
+                      </div>
+                    )}
+                    {media.media_type === "audio" && (
+                      <div className="media-placeholder">
+                        <span className="media-icon">🎵</span>
+                        <span className="media-label">Audio {media.duration_seconds ? `(${Math.floor(media.duration_seconds / 60)}:${String(media.duration_seconds % 60).padStart(2, '0')})` : ""}</span>
+                      </div>
+                    )}
+                    {media.media_type === "document" && (
+                      <div className="media-placeholder">
+                        <span className="media-icon">📄</span>
+                        <span className="media-label">{media.file_name || "Document"}</span>
+                      </div>
+                    )}
+                    {media.media_type === "sticker" && (
+                      <div className="media-placeholder">
+                        <span className="media-icon">🎭</span>
+                        <span className="media-label">Sticker</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Only show text if not just a placeholder */}
+                {message.content && !message.content.match(/^\[(image|video|audio|document|sticker)\]$/) && (
+                  <p className="wa-message-text">{message.content}</p>
+                )}
+                {/* Show caption for media with captions */}
+                {media?.caption && (
+                  <p className="wa-message-text wa-media-caption">{media.caption}</p>
+                )}
+
                 <div className="wa-message-meta">
                   <span className="timestamp">
                     {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
