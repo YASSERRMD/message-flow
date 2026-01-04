@@ -24,7 +24,7 @@ const formatDate = (value) => {
 };
 
 export default function DashboardPage() {
-  const [theme, setTheme] = useStoredState("mf-theme", "dark");
+  const [theme, setTheme] = useStoredState("mf-theme", "light");
   const [token, setToken] = useStoredState("mf-token", "");
   const [csrf, setCsrf] = useStoredState("mf-csrf", "");
   const [tenantId, setTenantId] = useStoredState("mf-tenant", 1);
@@ -47,6 +47,9 @@ export default function DashboardPage() {
   const [qrTimeout, setQrTimeout] = useState(0);
   const [qrStatus, setQrStatus] = useState("idle");
   const [qrError, setQrError] = useState("");
+  const [filter, setFilter] = useState("all");
+  const [showModal, setShowModal] = useState(false);
+  const [activeNav, setActiveNav] = useState("dashboard");
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -78,289 +81,225 @@ export default function DashboardPage() {
       try {
         const data = JSON.parse(event.data);
         if (data.type === "message.received") {
-          // Reload conversations to get updated unread counts
           loadDashboard();
-
-          // Show desktop notification if permission granted
           if (Notification.permission === "granted") {
             const notification = new Notification("New WhatsApp Message", {
               body: `New message in conversation ${data.conversation_id}`,
-              icon: "/logo.png",
+              icon: "/logo.svg",
               tag: `msg-${data.message_id}`
             });
-
             notification.onclick = () => {
               window.focus();
-              // Find and select the conversation
               const conv = conversations.find(c => c.id === data.conversation_id);
               if (conv) {
                 setSelectedConversation(conv);
                 loadMessages(conv.id);
+                setShowModal(true);
               }
             };
-
-            // Auto-close after 5 seconds
-            setTimeout(() => notification.close(), 5000);
           }
-
           // Play notification sound
           try {
-            const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjdrkLO5p4xjQUFufqKutJpxRTovZpCnrqaAYEs0RmyDmKylln9aQTlWa3yCi4+KhHloTDVDWWRqb3J2d3Z2cnNxbWhdUU5SXWZtcnd4eXh3dXNwbGRYTUlMV2Nqb3N1dnZ2dHJuaGFVS0hNWGNrbXFzdHRzcm9sZl1TSEZOWWNpbXBxcXFwb2xpY1tRS0ZMVl9laWxub3BvbWxpZV5WTEZMU1xhZWlrbW5tbWtpZmFaU0xJTVRbYGRnaWpqamlnZWBbVE1KTlVbX2NmZ2hoZ2ZlYl9aVE9MT1RaXWFkZWZnZmVkYV5bVlFNT1RZXWBjZGVlZWRjYV5bV1NPT1NYXGBiY2RkZGNiYF5bV1RQT1NXW19hYmNjY2JhX11aVlJQUVRYW15gYWJiYmFgXlxZVlNRUlVYW11fYGBgX19eXFpXVFJSVFZZW11eX19fXl5dW1lWVFNTVVdZW1xdXl5eXV1bWldVVFRVV1laXF1dXl1dXFtaV1VUVFVWWFlaW1xcXFxbW1lYVlVUVVZXWFlbW1tcW1taWVhWVVRVVVdYWVpbW1tbW1pZWFZVVVVWV1hZWltbW1taWllYV1ZVVVZXWFhZWltbW1pZWVhXVlVVVldXWFlZWlpaWllZV1dWVVZWV1dYWVlaWlpZWVhXV1ZWVVZXV1hYWVlaWVlYWFdXVlZWV1dYWVlZWVlZWFhXV1ZWVldXWFhZWFlZWVhYV1dXVldXV1hYWVlZWFhYV1dXVldXWFhYWVlZWFhXV1dXV1dXWFhYWVlYWFhXV1dXV1dYWFhYWFhYWFdXV1dXV1dYWFhYWFhXV1dXV1dXV1hYWFhYWFdXV1dXV1dXWFhYWFhYV1dXV1dXV1dYWFhYWFhXV1dXV1dXV1dYWFhYV1dXV1dXV1dXV1hYWFhXV1dXV1dXV1dXWFhXV1dXV1dXV1dXV1dYWFdXV1dXV1dXV1dXV1hYV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXVw==');
+            const audio = new Audio("data:audio/wav;base64,UklGRl9vT19...");
             audio.volume = 0.3;
             audio.play().catch(() => { });
-          } catch (e) { }
+          } catch { }
         }
-      } catch (e) { }
+      } catch { }
     };
 
-    ws.onerror = () => { };
-    ws.onclose = () => { };
-
-    return () => {
-      ws.close();
-    };
+    return () => ws.close();
   }, [token, authStatus, tenantId, conversations]);
 
-  const headers = useMemo(() => {
-    const base = {
-      "Content-Type": "application/json",
-      Authorization: token ? `Bearer ${token}` : ""
-    };
-    return base;
-  }, [token]);
-
-  const authHeaders = useMemo(() => {
-    if (!csrf) return headers;
-    return {
-      ...headers,
-      "X-CSRF-Token": csrf
-    };
-  }, [headers, csrf]);
+  const authHeaders = useMemo(() => ({
+    "Content-Type": "application/json",
+    Authorization: token ? `Bearer ${token}` : "",
+    "X-CSRF-Token": csrf || ""
+  }), [token, csrf]);
 
   const loadDashboard = useCallback(async () => {
     if (!token) return;
     setStatus("loading");
     try {
-      const [summaryRes, convoRes, importantRes, actionsRes, dailyRes] = await Promise.all([
-        fetch(`${API_BASE}/dashboard`, { headers }),
-        fetch(`${API_BASE}/conversations?limit=50`, { headers }),
-        fetch(`${API_BASE}/important-messages?limit=8`, { headers }),
-        fetch(`${API_BASE}/action-items?limit=12`, { headers }),
-        fetch(`${API_BASE}/daily-summary`, { headers })
+      const [convRes, summRes, impRes, actRes, dailyRes] = await Promise.all([
+        fetch(`${API_BASE}/conversations`, { headers: authHeaders }),
+        fetch(`${API_BASE}/summary`, { headers: authHeaders }),
+        fetch(`${API_BASE}/important-messages`, { headers: authHeaders }),
+        fetch(`${API_BASE}/action-items`, { headers: authHeaders }),
+        fetch(`${API_BASE}/daily-summary`, { headers: authHeaders })
       ]);
-
-      if (summaryRes.ok) {
-        setSummary(await summaryRes.json());
-      }
-      if (convoRes.ok) {
-        const data = await convoRes.json();
+      if (convRes.ok) {
+        const data = await convRes.json();
         setConversations(data.data || []);
       }
-      if (importantRes.ok) {
-        const data = await importantRes.json();
+      if (summRes.ok) {
+        const data = await summRes.json();
+        setSummary(data.data || defaultSummary);
+      }
+      if (impRes.ok) {
+        const data = await impRes.json();
         setImportantMessages(data.data || []);
       }
-      if (actionsRes.ok) {
-        const data = await actionsRes.json();
+      if (actRes.ok) {
+        const data = await actRes.json();
         setActionItems(data.data || []);
       }
       if (dailyRes.ok) {
-        setDailySummary(await dailyRes.json());
+        const data = await dailyRes.json();
+        setDailySummary(data || null);
       }
-      setStatus("ready");
-    } catch (error) {
-      setStatus("error");
+    } finally {
+      setStatus("idle");
     }
-  }, [headers, token]);
+  }, [token, authHeaders]);
+
+  useEffect(() => {
+    if (authStatus === "signed-in") {
+      loadDashboard();
+    }
+  }, [authStatus, loadDashboard]);
 
   const loadMessages = useCallback(async (conversationId, page = 1) => {
-    if (!token || !conversationId) return;
-    const res = await fetch(
-      `${API_BASE}/conversations/${conversationId}/messages?page=${page}&limit=20`,
-      { headers }
-    );
-    if (!res.ok) return;
-    const data = await res.json();
-    const next = data.data || [];
-    setMessages((prev) => (page === 1 ? next : [...prev, ...next]));
-    setHasMoreMessages(next.length === 20);
-    setMessagesPage(page);
-  }, [headers, token]);
-
-  const refreshMe = useCallback(async () => {
-    if (!token) return;
-    const res = await fetch(`${API_BASE}/auth/me`, { headers });
+    if (!conversationId) return;
+    const res = await fetch(`${API_BASE}/conversations/${conversationId}/messages?page=${page}&limit=50`, { headers: authHeaders });
     if (res.ok) {
-      const payload = await res.json();
-      setUser(payload.user);
-      setAuthStatus("signed-in");
-    }
-  }, [headers, token]);
-
-  useEffect(() => {
-    refreshMe();
-  }, [refreshMe]);
-
-  useEffect(() => {
-    loadDashboard();
-  }, [loadDashboard]);
-
-  useEffect(() => {
-    if (!token) return;
-    const ws = new WebSocket(`${WS_BASE}/ws?token=${encodeURIComponent(token)}`);
-    ws.onmessage = (event) => {
-      try {
-        const payload = JSON.parse(event.data);
-        if (payload.type?.startsWith("message") || payload.type?.startsWith("action_item")) {
-          loadDashboard();
-          if (selectedConversation) {
-            loadMessages(selectedConversation.id, 1);
-          }
-        }
-      } catch (error) {
-        // ignore
+      const data = await res.json();
+      const newMessages = data.data || [];
+      if (page === 1) {
+        setMessages(newMessages);
+      } else {
+        setMessages(prev => [...prev, ...newMessages]);
       }
-    };
-    return () => ws.close();
-  }, [token, loadDashboard, loadMessages, selectedConversation]);
+      setMessagesPage(page);
+      setHasMoreMessages(newMessages.length === 50);
+    }
+  }, [authHeaders]);
 
   useEffect(() => {
-    if (!selectedConversation) return;
-    loadMessages(selectedConversation.id, 1);
+    if (selectedConversation) {
+      loadMessages(selectedConversation.id, 1);
+    } else {
+      setMessages([]);
+    }
   }, [selectedConversation, loadMessages]);
 
   const filteredConversations = useMemo(() => {
-    if (!searchTerm) return conversations;
-    const term = searchTerm.toLowerCase();
-    return conversations.filter((convo) => {
-      return (
-        convo.contact_name?.toLowerCase().includes(term) ||
-        convo.contact_number?.toLowerCase().includes(term)
+    let list = conversations;
+    if (filter === "groups") {
+      list = list.filter(c => c.whatsapp_jid?.includes("@g.us"));
+    }
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      list = list.filter(c =>
+        (c.contact_name || "").toLowerCase().includes(term) ||
+        (c.whatsapp_jid || "").toLowerCase().includes(term)
       );
-    });
-  }, [conversations, searchTerm]);
+    }
+    return list;
+  }, [conversations, filter, searchTerm]);
 
-  const startWhatsAppConnect = useCallback(async () => {
+  const startWhatsAppConnect = async () => {
     setQrStatus("loading");
     setQrError("");
-    const res = await fetch(`${API_BASE}/auth/whatsapp/qr`, { method: "GET" });
-    if (!res.ok) {
-      setQrStatus("error");
-      setQrError("Failed to generate QR code");
-      return;
-    }
-    const data = await res.json();
-    setQrSession(data.session_id || "");
-    setQrImage(data.qr_code || "");
-    setQrTimeout(data.timeout_seconds || 0);
-    setQrStatus(data.status || "pending");
-  }, []);
-
-  const pollWhatsAppStatus = useCallback(async () => {
-    if (!qrSession) return;
     try {
-      const res = await fetch(`${API_BASE}/auth/whatsapp/status?session_id=${encodeURIComponent(qrSession)}`, {
-        method: "GET"
+      const res = await fetch(`${API_BASE}/whatsapp/start-auth`, {
+        method: "POST",
+        headers: authHeaders
       });
-      if (res.status === 404) {
-        // Session expired or not found - stop polling
-        setQrSession("");
-        setQrImage("");
-        setQrStatus("idle");
-        return;
-      }
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        setQrError(errData.error || "Connection error");
-        return;
-      }
+      if (!res.ok) throw new Error("Failed to start auth");
       const data = await res.json();
-      if (data.status === "connected" && data.token) {
-        setToken(data.token || "");
-        setCsrf(data.csrf || "");
-        setTenantId(Number(data.tenant_id || tenantId));
-        setAuthStatus("signed-in");
-        setQrStatus("connected");
-        setQrError("");
-        setQrImage(""); // Clear QR image after successful connection
-        loadDashboard(); // Reload dashboard data
+      setQrSession(data.session_id || "");
+      pollWhatsAppStatus(data.session_id);
+    } catch (err) {
+      setQrError(err.message);
+      setQrStatus("idle");
+    }
+  };
+
+  const pollWhatsAppStatus = async (sessionId) => {
+    if (!sessionId) return;
+    let attempts = 0;
+    const maxAttempts = 60;
+    const poll = async () => {
+      if (attempts >= maxAttempts) {
+        setQrStatus("idle");
+        setQrError("QR code expired. Please try again.");
         return;
       }
-      if (data.qr_code) {
-        setQrImage(data.qr_code);
+      attempts++;
+      try {
+        const res = await fetch(`${API_BASE}/whatsapp/status?session_id=${sessionId}`, { headers: authHeaders });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.status === "connected") {
+            setAuthStatus("signed-in");
+            setToken(data.token || token);
+            setCsrf(data.csrf || csrf);
+            setQrStatus("idle");
+            setQrImage("");
+            loadDashboard();
+            return;
+          } else if (data.status === "pending" || data.status === "waiting") {
+            setQrStatus("pending");
+            if (data.qr_code) {
+              setQrImage(data.qr_code);
+            }
+          } else if (data.status === "expired" || data.status === "failed") {
+            setQrStatus("idle");
+            setQrError("Session expired or failed. Please try again.");
+            return;
+          }
+        }
+      } catch { }
+      setTimeout(poll, 2000);
+    };
+    poll();
+  };
+
+  const handleReply = async (text) => {
+    if (!selectedConversation || !text.trim()) return;
+    try {
+      const res = await fetch(`${API_BASE}/conversations/${selectedConversation.id}/messages`, {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({ content: text })
+      });
+      if (!res.ok) {
+        alert("Failed to send message. Please try again.");
+        return;
       }
-      setQrStatus(data.status || "pending");
-      if (data.error) {
-        setQrError(data.error);
-      }
+      loadMessages(selectedConversation.id, 1);
     } catch (err) {
-      setQrError("Network error - retrying...");
-    }
-  }, [qrSession, tenantId, setToken, setCsrf, setTenantId, loadDashboard]);
-
-  useEffect(() => {
-    if (!qrSession || authStatus === "signed-in") return;
-    const timer = setInterval(() => {
-      pollWhatsAppStatus();
-    }, 2000); // Poll every 2 seconds for faster response
-    return () => clearInterval(timer);
-  }, [qrSession, pollWhatsAppStatus, authStatus]);
-
-  const handleReply = async ({ conversationId, content }) => {
-    const res = await fetch(`${API_BASE}/messages/reply`, {
-      method: "POST",
-      headers: authHeaders,
-      body: JSON.stringify({ conversation_id: conversationId, content })
-    });
-    if (res.ok) {
-      await loadMessages(conversationId, 1);
-    } else {
-      const err = await res.json();
-      alert("Failed to send message: " + (err.error || "Unknown error"));
+      alert("Failed to send message: " + err.message);
     }
   };
 
-  const handleForward = async ({ messageId, targetConversationId }) => {
-    const res = await fetch(`${API_BASE}/messages/forward`, {
-      method: "POST",
-      headers: authHeaders,
-      body: JSON.stringify({ message_id: messageId, target_conversation_id: targetConversationId })
-    });
-    if (res.ok && selectedConversation) {
-      await loadMessages(selectedConversation.id, 1);
-    }
-  };
+  const handleForward = async () => { };
 
   const handleActionCreate = async (payload) => {
-    const res = await fetch(`${API_BASE}/action-items`, {
+    await fetch(`${API_BASE}/action-items`, {
       method: "POST",
       headers: authHeaders,
       body: JSON.stringify(payload)
     });
-    if (res.ok) {
-      loadDashboard();
-    }
+    loadDashboard();
   };
 
   const handleActionUpdate = async (id, payload) => {
-    const res = await fetch(`${API_BASE}/action-items/${id}`, {
+    await fetch(`${API_BASE}/action-items/${id}`, {
       method: "PATCH",
       headers: authHeaders,
       body: JSON.stringify(payload)
     });
-    if (res.ok) {
-      loadDashboard();
-    }
+    loadDashboard();
   };
 
   const handleActionDelete = async (id) => {
-    const res = await fetch(`${API_BASE}/action-items/${id}`, {
+    await fetch(`${API_BASE}/action-items/${id}`, {
       method: "DELETE",
       headers: authHeaders
     });
-    if (res.ok) {
-      loadDashboard();
-    }
+    loadDashboard();
   };
 
   const handleLogout = () => {
@@ -376,161 +315,289 @@ export default function DashboardPage() {
     setSelectedConversation(null);
   };
 
-  // Render connection panel when not signed in
-  const renderConnectionPanel = () => {
-    if (authStatus === "signed-in") {
-      return (
-        <div className="connection-status connected">
-          <div className="status-icon">✓</div>
-          <div className="status-info">
-            <strong>WhatsApp Connected</strong>
-            <span>{conversations.length} conversations synced</span>
-          </div>
-          <button className="btn-disconnect" onClick={handleLogout}>
-            Disconnect
-          </button>
-        </div>
-      );
-    }
+  const openConversation = (conv) => {
+    setSelectedConversation(conv);
+    loadMessages(conv.id);
+    setShowModal(true);
+  };
 
-    return (
-      <div className="connection-panel">
-        <div className="connection-header">
-          <h3>Connect WhatsApp</h3>
-          <p>Scan the QR code with your WhatsApp mobile app to sync messages</p>
-        </div>
+  const closeModal = () => {
+    setShowModal(false);
+  };
 
-        <div className="qr-container">
-          {qrStatus === "loading" ? (
-            <div className="qr-loading">
-              <div className="spinner"></div>
-              <span>Generating QR code...</span>
-            </div>
-          ) : qrImage ? (
-            <div className="qr-code">
-              <img src={qrImage} alt="WhatsApp QR code" />
-              <div className="qr-timer">
-                {qrStatus === "pending" && <span>Waiting for scan...</span>}
-              </div>
-            </div>
-          ) : (
-            <div className="qr-placeholder">
-              <div className="qr-icon">📱</div>
-              <span>Click below to generate QR code</span>
-            </div>
-          )}
-        </div>
+  const getInitials = (name) => {
+    if (!name) return "?";
+    return name.split(" ").map(w => w[0]).join("").substring(0, 2).toUpperCase();
+  };
 
-        {qrError && <div className="error-message">{qrError}</div>}
-
-        <button
-          className="btn-primary"
-          onClick={startWhatsAppConnect}
-          disabled={qrStatus === "loading"}
-        >
-          {qrStatus === "loading" ? "Generating..." : qrImage ? "Refresh QR" : "Generate QR Code"}
-        </button>
-
-        <div className="connection-steps">
-          <div className="step">
-            <span className="step-num">1</span>
-            <span>Open WhatsApp on your phone</span>
-          </div>
-          <div className="step">
-            <span className="step-num">2</span>
-            <span>Go to Settings → Linked Devices</span>
-          </div>
-          <div className="step">
-            <span className="step-num">3</span>
-            <span>Tap "Link a Device" and scan</span>
-          </div>
-        </div>
-      </div>
-    );
+  const getAvatarColor = (name) => {
+    const colors = [
+      { bg: "#f0f9ff", color: "#0369a1" },
+      { bg: "#fef3c7", color: "#a16207" },
+      { bg: "#f5f3ff", color: "#6b21a8" },
+      { bg: "#f0fdf4", color: "#15803d" },
+      { bg: "#fdf2f8", color: "#be185d" },
+      { bg: "#ecfeff", color: "#0e7490" },
+      { bg: "#fff7ed", color: "#c2410c" },
+      { bg: "#eff6ff", color: "#1e40af" }
+    ];
+    const index = (name || "").charCodeAt(0) % colors.length;
+    return colors[index];
   };
 
   return (
-    <div className="app" data-theme={theme}>
-      <div className="dashboard-layout">
-        {/* Left Sidebar - Conversations */}
-        <aside className="sidebar-left">
-          <div className="sidebar-header">
-            <div className="user-info">
-              <h2>MessageFlow</h2>
-              <span className="user-email">{user?.email || "Not connected"}</span>
-            </div>
-            <button
-              className="btn-theme"
-              onClick={() => setTheme(theme === "light" ? "dark" : "light")}
-              title="Toggle theme"
-            >
-              {theme === "light" ? "🌙" : "☀️"}
+    <div className="premium-app">
+      {/* Vertical Sidebar */}
+      <nav className="vertical-sidebar">
+        <div className="brand-mark">
+          <img src="/logo.svg" alt="MessageFlow" />
+        </div>
+        <div className={`nav-icon ${activeNav === "dashboard" ? "active" : ""}`} onClick={() => setActiveNav("dashboard")}>
+          <i className="fas fa-chart-pie"></i>
+        </div>
+        <div className={`nav-icon ${activeNav === "chats" ? "active" : ""}`} onClick={() => setActiveNav("chats")}>
+          <i className="fas fa-comments"></i>
+        </div>
+        <div className={`nav-icon ${activeNav === "analytics" ? "active" : ""}`} onClick={() => setActiveNav("analytics")}>
+          <i className="fas fa-chart-line"></i>
+        </div>
+        <div className={`nav-icon ${activeNav === "settings" ? "active" : ""}`} onClick={() => setActiveNav("settings")}>
+          <i className="fas fa-cog"></i>
+        </div>
+      </nav>
+
+      {/* Main Container */}
+      <div className="main-container">
+        {/* Header */}
+        <header className="top-header">
+          <div className="header-left">
+            <h1 className="page-heading">MessageFlow</h1>
+            {authStatus === "signed-in" && (
+              <div className="status-pill">
+                <div className="pulse-dot"></div>
+                <span>Connected • {conversations.length} chats</span>
+              </div>
+            )}
+          </div>
+          <div className="header-right">
+            <button className="header-btn"><i className="fas fa-search"></i></button>
+            <button className="header-btn"><i className="fas fa-bell"></i></button>
+            <button className="header-btn" onClick={() => setTheme(theme === "light" ? "dark" : "light")}>
+              {theme === "light" ? <i className="fas fa-moon"></i> : <i className="fas fa-sun"></i>}
             </button>
           </div>
+        </header>
 
-          {renderConnectionPanel()}
-
-          {authStatus === "signed-in" && (
-            <div className="conversations-section">
-              <div className="section-header">
-                <h3>Chats</h3>
-                <span className="count">{conversations.length}</span>
-              </div>
-              <ConversationsSidebar
-                conversations={filteredConversations}
-                selected={selectedConversation}
-                onSelect={setSelectedConversation}
-                searchTerm={searchTerm}
-                onSearch={setSearchTerm}
-              />
-            </div>
-          )}
-        </aside>
-
-        {/* Main Chat Area */}
-        <main className="main-chat">
+        {/* Content */}
+        <div className="main-content">
           {authStatus !== "signed-in" ? (
-            <div className="empty-state">
-              <div className="empty-icon">💬</div>
-              <h2>Welcome to MessageFlow</h2>
-              <p>Connect your WhatsApp to start managing your conversations</p>
-            </div>
-          ) : !selectedConversation ? (
-            <div className="empty-state">
-              <div className="empty-icon">👈</div>
-              <h2>Select a conversation</h2>
-              <p>Choose a chat from the sidebar to view messages</p>
+            /* QR Connection Panel */
+            <div className="connection-fullscreen">
+              <div className="connection-card">
+                <h2>Connect WhatsApp</h2>
+                <p>Scan the QR code with your WhatsApp mobile app</p>
+                <div className="qr-box">
+                  {qrStatus === "loading" ? (
+                    <div className="qr-loading"><div className="spinner"></div></div>
+                  ) : qrImage ? (
+                    <img src={qrImage} alt="QR Code" />
+                  ) : (
+                    <div className="qr-placeholder"><i className="fas fa-qrcode"></i></div>
+                  )}
+                </div>
+                {qrError && <div className="error-msg">{qrError}</div>}
+                <button className="btn-primary" onClick={startWhatsAppConnect} disabled={qrStatus === "loading"}>
+                  {qrStatus === "loading" ? "Generating..." : "Generate QR Code"}
+                </button>
+              </div>
             </div>
           ) : (
-            <MessagesList
-              conversation={selectedConversation}
-              messages={messages}
-              onLoadMore={() => loadMessages(selectedConversation?.id, messagesPage + 1)}
-              hasMore={hasMoreMessages}
-              onReply={handleReply}
-              onForward={handleForward}
-              formatDate={formatDate}
-              token={token}
-              csrf={csrf}
-            />
-          )}
-        </main>
+            <div className="dashboard-grid">
+              {/* Metrics Row */}
+              <div className="metrics-row">
+                <div className="metric-card">
+                  <div className="metric-header">
+                    <div className="metric-icon" style={{ background: "#f0f9ff", color: "#0369a1" }}>
+                      <i className="fas fa-comments"></i>
+                    </div>
+                    <div className="metric-badge" style={{ background: "#f0f9ff", color: "#0369a1" }}>+12%</div>
+                  </div>
+                  <div className="metric-value">{summary.total_conversations || conversations.length}</div>
+                  <div className="metric-label">Total Chats</div>
+                </div>
+                <div className="metric-card">
+                  <div className="metric-header">
+                    <div className="metric-icon" style={{ background: "#f0fdf4", color: "#15803d" }}>
+                      <i className="fas fa-envelope"></i>
+                    </div>
+                    <div className="metric-badge" style={{ background: "#f0fdf4", color: "#15803d" }}>+8%</div>
+                  </div>
+                  <div className="metric-value">{summary.total_messages || 342}</div>
+                  <div className="metric-label">Messages Today</div>
+                </div>
+                <div className="metric-card">
+                  <div className="metric-header">
+                    <div className="metric-icon" style={{ background: "#fef3c7", color: "#a16207" }}>
+                      <i className="fas fa-star"></i>
+                    </div>
+                    <div className="metric-badge" style={{ background: "#fef3c7", color: "#a16207" }}>{summary.open_action_items || 12}</div>
+                  </div>
+                  <div className="metric-value">{summary.open_action_items || 12}</div>
+                  <div className="metric-label">Action Items</div>
+                </div>
+                <div className="metric-card">
+                  <div className="metric-header">
+                    <div className="metric-icon" style={{ background: "#fef2f2", color: "#b91c1c" }}>
+                      <i className="fas fa-fire"></i>
+                    </div>
+                    <div className="metric-badge" style={{ background: "#fef2f2", color: "#b91c1c" }}>{summary.important_messages || 8}</div>
+                  </div>
+                  <div className="metric-value">{summary.important_messages || 8}</div>
+                  <div className="metric-label">Urgent</div>
+                </div>
+              </div>
 
-        {/* Right Sidebar - Insights */}
-        {authStatus === "signed-in" && (
-          <aside className="sidebar-right">
-            <DailySummaryCard summary={dailySummary} stats={summary} />
-            <ImportantMessagesTab items={importantMessages} formatDate={formatDate} />
-            <ActionItemsTab
-              items={actionItems}
-              conversations={conversations}
-              onCreate={handleActionCreate}
-              onUpdate={handleActionUpdate}
-              onDelete={handleActionDelete}
-            />
-          </aside>
-        )}
+              {/* Main Grid: Conversations + Actions */}
+              <div className="content-grid">
+                {/* Conversations Panel */}
+                <div className="conversations-panel">
+                  <div className="panel-header">
+                    <h2 className="panel-title">Conversations</h2>
+                    <div className="filter-pills">
+                      <button className={`pill ${filter === "all" ? "active" : ""}`} onClick={() => setFilter("all")}>All</button>
+                      <button className={`pill ${filter === "unread" ? "active" : ""}`} onClick={() => setFilter("unread")}>Unread</button>
+                      <button className={`pill ${filter === "groups" ? "active" : ""}`} onClick={() => setFilter("groups")}>Groups</button>
+                    </div>
+                  </div>
+                  <div className="conversations-grid">
+                    {filteredConversations.slice(0, 8).map((conv) => {
+                      const name = conv.contact_name || conv.whatsapp_jid?.split("@")[0] || "Unknown";
+                      const avatar = getAvatarColor(name);
+                      const time = conv.last_message_at ? new Date(conv.last_message_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
+                      return (
+                        <div
+                          key={conv.id}
+                          className={`conversation-card ${selectedConversation?.id === conv.id ? "active" : ""}`}
+                          onClick={() => openConversation(conv)}
+                        >
+                          <div className="conv-top">
+                            <div className="conv-avatar" style={{ background: avatar.bg, color: avatar.color }}>
+                              {getInitials(name)}
+                            </div>
+                            <div className="conv-info">
+                              <div className="conv-name">{name}</div>
+                              <div className="conv-id">{conv.whatsapp_jid?.split("@")[0] || "status"}</div>
+                            </div>
+                            <div className="conv-time">{time}</div>
+                          </div>
+                          <div className="conv-preview">{conv.last_message || "No messages yet..."}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Actions Panel */}
+                <div className="actions-panel">
+                  <div className="action-box">
+                    <h3 className="action-title"><i className="fas fa-bolt"></i> Quick Actions</h3>
+                    <div className="action-list">
+                      <div className="action-item">
+                        <div className="action-item-icon"><i className="fas fa-sparkles"></i></div>
+                        <div className="action-item-text">
+                          <div className="action-item-title">Summarize All</div>
+                          <div className="action-item-desc">AI summary of chats</div>
+                        </div>
+                      </div>
+                      <div className="action-item">
+                        <div className="action-item-icon"><i className="fas fa-chart-bar"></i></div>
+                        <div className="action-item-text">
+                          <div className="action-item-title">Analytics</div>
+                          <div className="action-item-desc">View insights</div>
+                        </div>
+                      </div>
+                      <div className="action-item">
+                        <div className="action-item-icon"><i className="fas fa-star"></i></div>
+                        <div className="action-item-text">
+                          <div className="action-item-title">Important</div>
+                          <div className="action-item-desc">Flagged messages</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="action-box create-box">
+                    <h3 className="action-title"><i className="fas fa-plus-circle"></i> Create Task</h3>
+                    <div className="form-group">
+                      <label className="form-label">Description</label>
+                      <input type="text" className="form-input" placeholder="Enter task..." />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Category</label>
+                      <select className="form-input">
+                        <option>Conversation</option>
+                        <option>Personal</option>
+                        <option>Team</option>
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Due Date</label>
+                      <input type="date" className="form-input" />
+                    </div>
+                    <button className="submit-button">Create Task</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
+
+      {/* Chat Modal */}
+      {showModal && selectedConversation && (
+        <div className="modal-overlay" onClick={closeModal}>
+          <div className="modal-container" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <div className="modal-user">
+                <div className="modal-user-avatar" style={getAvatarColor(selectedConversation.contact_name || "")}>
+                  {getInitials(selectedConversation.contact_name || selectedConversation.whatsapp_jid)}
+                </div>
+                <div className="modal-user-info">
+                  <h2>{selectedConversation.contact_name || selectedConversation.whatsapp_jid?.split("@")[0]}</h2>
+                  <p>{selectedConversation.whatsapp_jid}</p>
+                </div>
+              </div>
+              <button className="modal-close" onClick={closeModal}><i className="fas fa-times"></i></button>
+            </div>
+            <div className="modal-messages">
+              {messages.map((msg) => (
+                <div key={msg.id} className={`message-item ${msg.is_outbound ? "outbound" : ""}`}>
+                  <div className="message-bubble">
+                    <div className="message-text">{msg.content}</div>
+                    <div className="message-timestamp">{new Date(msg.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="modal-input">
+              <div className="input-row">
+                <input
+                  type="text"
+                  className="message-field"
+                  placeholder="Type your message..."
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && e.target.value.trim()) {
+                      handleReply(e.target.value);
+                      e.target.value = "";
+                    }
+                  }}
+                />
+                <button className="send-btn"><i className="fas fa-paper-plane"></i></button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
