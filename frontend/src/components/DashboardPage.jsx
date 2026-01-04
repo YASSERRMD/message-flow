@@ -328,40 +328,6 @@ export default function DashboardPage({ onNavigate }) {
 
   return (
     <div className="app-container">
-      {/* Top Header */}
-      <header className="top-header">
-        <div className="header-left">
-          <div className="logo">
-            <div className="logo-icon"><i className="fas fa-comment-dots"></i></div>
-            <span>MessageFlow</span>
-          </div>
-          <div className="connection-status">
-            <div className="status-dot"></div>
-            <span>Connected • {conversations.length} chats</span>
-          </div>
-        </div>
-        <div className="header-search">
-          <i className="fas fa-search search-icon"></i>
-          <input
-            type="text"
-            className="search-input"
-            placeholder="Search conversations..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </div>
-        <div className="header-right">
-          <button className="header-btn" title="Team Hub" onClick={() => onNavigate && onNavigate('collab')}><i className="fas fa-users"></i></button>
-          <button className="header-btn" title="LLM Control" onClick={() => onNavigate && onNavigate('llm')}><i className="fas fa-brain"></i></button>
-          <button className="header-btn" title="Notifications"><i className="fas fa-bell"></i></button>
-          <button className="header-btn" onClick={() => setTheme(theme === "light" ? "dark" : "light")}>
-            <i className={theme === "light" ? "fas fa-moon" : "fas fa-sun"}></i>
-          </button>
-          <button className="header-btn" onClick={handleLogout}><i className="fas fa-sign-out-alt"></i></button>
-        </div>
-      </header>
-
-      {/* Main Container */}
       <div className="main-container">
         {/* Conversations Sidebar */}
         <aside className="conversations-sidebar">
