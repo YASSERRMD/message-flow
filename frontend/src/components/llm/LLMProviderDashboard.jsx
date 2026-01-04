@@ -1,16 +1,40 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import useStoredState from "../../hooks/useStoredState.js";
-import ProvidersListView from "./ProvidersListView.jsx";
-import ProviderDetailsPanel from "./ProviderDetailsPanel.jsx";
-import AddProviderModal from "./AddProviderModal.jsx";
-import HealthStatusDashboard from "./HealthStatusDashboard.jsx";
-import CostAnalyticsDashboard from "./CostAnalyticsDashboard.jsx";
-import PerformanceComparisonTable from "./PerformanceComparisonTable.jsx";
-import FeatureAssignmentPanel from "./FeatureAssignmentPanel.jsx";
-import SettingsPanel from "./SettingsPanel.jsx";
-import AlertPanel from "./AlertPanel.jsx";
+import "./llm-dashboard.css";
 
-const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8081/api/v1";
+// ... previous imports ...
+
+export default function LLMProviderDashboard({ token, csrf }) {
+  // ... existing state ...
+
+  // Remove this internal header block or visual duplications
+  // Applying new container class
+  return (
+    <div className="llm-dashboard-container">
+      <div className="llm-header-actions">
+        <div className="llm-header-left">
+          <h1>Provider Management</h1>
+          <p className="subtitle">Track health, cost, and performance for every model</p>
+        </div>
+        <div className="llm-header-right">
+          <button className="llm-btn llm-btn-secondary" onClick={() => window.location.reload()}>
+            <i className="fas fa-sync"></i> Refresh
+          </button>
+          <button className="llm-btn llm-btn-primary" onClick={() => setShowAdd(true)}>
+            <i className="fas fa-plus"></i> Add Provider
+          </button>
+        </div>
+      </div>
+
+      {/* Rest of the dashboard content using new grid classes */}
+      <div className="llm-stats-grid">
+        {/* ... stats ... */}
+      </div>
+
+      <div className="llm-main-grid">
+        {/* ... tables and panels ... */}
+      </div>
+    </div>
+  );
+}
 
 const providerModels = {
   claude: ["claude-3-opus-20240229", "claude-3-sonnet-20240229"],
@@ -262,149 +286,52 @@ export default function LLMProviderDashboard({ token, csrf }) {
   };
 
   return (
-    <div className="main-container">
-      {/* Sidebar for navigation or filters could go here, but using full width for now */}
-      <div className="chat-area" style={{ background: theme === 'dark' ? '#0f0f0f' : '#f8f9fa' }}>
-        <div className="chat-header">
-          <div className="chat-user-info">
-            <div className="chat-avatar" style={{ background: 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)', color: 'white' }}>
-              <i className="fas fa-brain"></i>
-            </div>
-            <div className="chat-details">
-              <h3>Provider Management</h3>
-              <p>Track health, cost, and performance for every model</p>
-            </div>
-          </div>
-          <div className="chat-actions">
-            <button className="action-btn" onClick={() => onNavigate && onNavigate("operations")}>
-              <i className="fas fa-arrow-left"></i> Back to Chat
-            </button>
-            <button className="action-btn primary" onClick={() => setShowAdd(true)}>
-              <i className="fas fa-plus"></i> Add Provider
-            </button>
-            <button className="action-btn" onClick={loadAll}>
-              <i className={`fas fa-sync ${loading ? 'fa-spin' : ''}`}></i> Refresh
-            </button>
-          </div>
-        </div>
-
-        <div className="messages-container" style={{ padding: '24px' }}>
-
-          {/* Stats Grid */}
-          <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)', marginBottom: '24px' }}>
-            <div className="stat-box">
-              <div className="stat-value">{health.filter(h => h.status === 'healthy').length}/{providers.length}</div>
-              <div className="stat-label">Healthy Providers</div>
-            </div>
-            <div className="stat-box">
-              <div className="stat-value">${(costs?.total_cost || 0).toFixed(2)}</div>
-              <div className="stat-label">Monthly Spend</div>
-            </div>
-            <div className="stat-box">
-              <div className="stat-value">{comparison.length}</div>
-              <div className="stat-label">Models Tracked</div>
-            </div>
-            <div className="stat-box">
-              <div className="stat-value">{alerts.length}</div>
-              <div className="stat-label">Active Alerts</div>
-            </div>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '24px' }}>
-
-            {/* Main Content Column */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-
-              {/* Providers List */}
-              <div className="connect-card" style={{ maxWidth: '100%', padding: '24px', textAlign: 'left' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
-                  <h2 style={{ fontSize: '18px', fontWeight: '600' }}>Active Providers</h2>
-
-                </div>
-                <ProvidersListView
-                  providers={filteredProviders}
-                  health={health}
-                  onSelect={setSelectedProvider}
-                  selectedId={selectedProvider?.id}
-                  filters={filters}
-                  setFilters={setFilters}
-                  sortKey={sortKey}
-                  setSortKey={setSortKey}
-                  onTest={handleTest}
-                  onRemove={handleRemove}
-                  loading={loading}
-                />
-              </div>
-
-              {/* Performance Comparison */}
-              <div className="connect-card" style={{ maxWidth: '100%', padding: '24px', textAlign: 'left' }}>
-                <h2 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '16px' }}>Performance Benchmarks</h2>
-                <PerformanceComparisonTable data={comparison} />
-              </div>
-
-              {/* Cost Analytics */}
-              <div className="connect-card" style={{ maxWidth: '100%', padding: '24px', textAlign: 'left' }}>
-                <h2 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '16px' }}>Cost Analysis</h2>
-                <CostAnalyticsDashboard data={costs} />
-              </div>
-
-            </div>
-
-            {/* Right Sidebar Column */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-
-              {/* Recommendations */}
-              {recommendations.length > 0 && (
-                <div className="connect-card" style={{ maxWidth: '100%', padding: '24px', textAlign: 'left', background: '#f0fdf4', borderColor: '#bbf7d0' }}>
-                  <h2 style={{ fontSize: '16px', fontWeight: '600', color: '#166534', marginBottom: '12px' }}>
-                    <i className="fas fa-lightbulb"></i> Optimization Tips
-                  </h2>
-                  <ul style={{ listStyle: 'none', padding: 0 }}>
-                    {recommendations.map((rec, i) => (
-                      <li key={i} style={{ fontSize: '13px', marginBottom: '8px', color: '#166534' }}>• {rec.message}</li>
-                    ))}
-                  </ul>
-                </div>
+                    ))
+}
+                  </ul >
+                </div >
               )}
 
-              {/* Feature Assignment */}
-              <div className="connect-card" style={{ maxWidth: '100%', padding: '24px', textAlign: 'left' }}>
-                <h2 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '16px' }}>Routing Rules</h2>
-                <FeatureAssignmentPanel features={features} providers={providers} />
-              </div>
+{/* Feature Assignment */ }
+<div className="connect-card" style={{ maxWidth: '100%', padding: '24px', textAlign: 'left' }}>
+  <h2 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '16px' }}>Routing Rules</h2>
+  <FeatureAssignmentPanel features={features} providers={providers} />
+</div>
 
-              {/* Global Settings */}
-              <div className="connect-card" style={{ maxWidth: '100%', padding: '24px', textAlign: 'left' }}>
-                <h2 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '16px' }}>Global Settings</h2>
-                <SettingsPanel />
-              </div>
+{/* Global Settings */ }
+<div className="connect-card" style={{ maxWidth: '100%', padding: '24px', textAlign: 'left' }}>
+  <h2 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '16px' }}>Global Settings</h2>
+  <SettingsPanel />
+</div>
 
-            </div>
-          </div>
+            </div >
+          </div >
 
+        </div >
+      </div >
+
+  { showAdd && <AddProviderModal onClose={() => setShowAdd(false)} onSave={loadAll} token={token} />}
+
+{
+  selectedProvider && (
+    <div className="summary-modal-overlay">
+      <div className="summary-modal" style={{ maxWidth: '800px' }}>
+        <div className="summary-header">
+          <h3>{selectedProvider.provider_name} Details</h3>
+          <button className="close-btn" onClick={() => setSelectedProvider(null)}><i className="fas fa-times"></i></button>
+        </div>
+        <div className="summary-content">
+          <ProviderDetailsPanel
+            provider={selectedProvider}
+            onClose={() => setSelectedProvider(null)}
+            onUpdate={handleUpdate}
+            headers={headers}
+          />
         </div>
       </div>
-
-      {showAdd && <AddProviderModal onClose={() => setShowAdd(false)} onSave={loadAll} token={token} />}
-
-      {selectedProvider && (
-        <div className="summary-modal-overlay">
-          <div className="summary-modal" style={{ maxWidth: '800px' }}>
-            <div className="summary-header">
-              <h3>{selectedProvider.provider_name} Details</h3>
-              <button className="close-btn" onClick={() => setSelectedProvider(null)}><i className="fas fa-times"></i></button>
-            </div>
-            <div className="summary-content">
-              <ProviderDetailsPanel
-                provider={selectedProvider}
-                onClose={() => setSelectedProvider(null)}
-                onUpdate={handleUpdate}
-                headers={headers}
-              />
-            </div>
-          </div>
-        </div>
-      )}
     </div>
+  )
+}
+    </div >
   );
 }
