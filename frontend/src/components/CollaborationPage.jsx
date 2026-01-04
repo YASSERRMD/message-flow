@@ -28,7 +28,6 @@ export default function CollaborationPage({ token, csrf, role }) {
   const hasAnyFeature = rank >= 2;
 
   return (
-  return (
     <div className="main-container">
       <aside className="conversations-sidebar" style={{ width: '280px' }}>
         <div className="sidebar-header">
