@@ -573,6 +573,11 @@ body {
   border: 1px solid var(--border);
 }
 
+.chat-type-icon {
+  margin-right: 8px;
+  font-size: 1.1em;
+}
+
 .wa-message.is-outbound .wa-message-bubble {
   background: var(--accent);
   color: white;

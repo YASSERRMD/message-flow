@@ -64,13 +64,20 @@ export default function MessagesList({
     );
   }
 
+  // Detect group conversation
+  const isGroup = conversation.contact_number?.includes("@g.us") ||
+    conversation.contact_number?.startsWith("12036");
+
   return (
     <section className="wa-chat-panel">
       <header className="wa-chat-header">
         <div className="header-info">
-          <h3>{conversation.contact_name || conversation.contact_number}</h3>
+          <h3>
+            <span className="chat-type-icon">{isGroup ? "👥" : "👤"}</span>
+            {conversation.contact_name || conversation.contact_number}
+          </h3>
           <div className="wa-chat-sub">
-            {conversation.contact_number}
+            {isGroup ? "Group" : conversation.contact_number}
           </div>
         </div>
       </header>
