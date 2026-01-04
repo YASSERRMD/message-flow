@@ -14,6 +14,7 @@ export default function App() {
   const [token, setToken] = useStoredState("mf-token", "");
   const [csrf] = useStoredState("mf-csrf", "");
   const [theme, setTheme] = useStoredState("mf-theme", "light");
+  const [searchTerm, setSearchTerm] = useState("");
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -50,8 +51,11 @@ export default function App() {
           setTheme={setTheme}
           onLogout={handleLogout}
           conversationsCount={0} // TODO: Lift state if needed
+          searchTerm={searchTerm}
+          setSearchTerm={setSearchTerm}
         />
       )}
+      {view === "operations" && <DashboardPage onNavigate={setView} searchTerm={searchTerm} />}
       {view === "collab" && (
         <CollaborationPage token={token} csrf={csrf} role={role} onNavigate={setView} />
       )}

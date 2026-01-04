@@ -11,8 +11,7 @@ const defaultSummary = {
   open_action_items: 0
 };
 
-export default function DashboardPage({ onNavigate }) {
-
+export default function DashboardPage({ onNavigate, searchTerm = "" }) {
 
   const [theme, setTheme] = useStoredState("mf-theme", "light");
   const [token, setToken] = useStoredState("mf-token", "");
@@ -26,7 +25,7 @@ export default function DashboardPage({ onNavigate }) {
   const [messagesPage, setMessagesPage] = useState(1);
   const [hasMoreMessages, setHasMoreMessages] = useState(true);
   const [selectedConversation, setSelectedConversation] = useState(null);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedConversation, setSelectedConversation] = useState(null);
   const [authStatus, setAuthStatus] = useState("signed-out");
   const [qrSession, setQrSession] = useState("");
   const [qrImage, setQrImage] = useState("");
@@ -322,12 +321,12 @@ export default function DashboardPage({ onNavigate }) {
             {qrStatus === "loading" ? "Generating..." : "Generate QR Code"}
           </button>
         </div>
-      </div>
+      </>
     );
   }
 
   return (
-    <div className="app-container">
+    <>
       <div className="main-container">
         {/* Conversations Sidebar */}
         <aside className="conversations-sidebar">
@@ -596,6 +595,6 @@ export default function DashboardPage({ onNavigate }) {
           </div>
         </div>
       )}
-    </div>
+    </div >
   );
 }
