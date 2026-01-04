@@ -32,6 +32,9 @@ export default function DashboardPage() {
   const [qrError, setQrError] = useState("");
   const [filter, setFilter] = useState("all");
   const [replyText, setReplyText] = useState("");
+  const [showSummary, setShowSummary] = useState(false);
+  const [summaryData, setSummaryData] = useState(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -198,16 +201,49 @@ export default function DashboardPage() {
   const handleSendMessage = async () => {
     if (!selectedConversation || !replyText.trim()) return;
     try {
-      const res = await fetch(`${API_BASE}/conversations/${selectedConversation.id}/messages`, {
+      const res = await fetch(`${API_BASE}/messages/reply`, {
         method: "POST",
         headers: authHeaders,
-        body: JSON.stringify({ content: replyText })
+        body: JSON.stringify({
+          conversation_id: selectedConversation.id,
+          content: replyText
+        })
       });
       if (res.ok) {
         setReplyText("");
         loadMessages(selectedConversation.id, 1);
+      } else {
+        alert("Failed to send message");
       }
-    } catch { }
+    } catch (err) {
+      alert("Error sending message: " + err.message);
+    }
+  };
+
+  const handleSummarize = async () => {
+    if (!selectedConversation) return;
+    setSummaryLoading(true);
+    setShowSummary(true);
+    setSummaryData(null);
+    try {
+      const res = await fetch(`${API_BASE}/conversations/summarize`, {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({ conversation_id: selectedConversation.id })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSummaryData(data.data || data);
+      } else {
+        alert("Failed to summarize - make sure LLM provider is configured");
+        setShowSummary(false);
+      }
+    } catch (err) {
+      alert("Error: " + err.message);
+      setShowSummary(false);
+    } finally {
+      setSummaryLoading(false);
+    }
   };
 
   const handleLogout = () => {
@@ -368,7 +404,7 @@ export default function DashboardPage() {
                 </div>
                 <div className="chat-actions">
                   <button className="action-btn"><i className="fas fa-search"></i> Search</button>
-                  <button className="action-btn primary"><i className="fas fa-sparkles"></i> Summarize</button>
+                  <button className="action-btn primary" onClick={handleSummarize}><i className="fas fa-sparkles"></i> Summarize</button>
                 </div>
               </div>
 
@@ -485,6 +521,67 @@ export default function DashboardPage() {
           </div>
         </aside>
       </div>
+
+      {/* Summary Modal */}
+      {showSummary && (
+        <div className="summary-modal-overlay" onClick={() => setShowSummary(false)}>
+          <div className="summary-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="summary-header">
+              <h3>✨ Conversation Summary</h3>
+              <button className="close-btn" onClick={() => setShowSummary(false)}>×</button>
+            </div>
+            <div className="summary-content">
+              {summaryLoading ? (
+                <div className="summary-loading">
+                  <div className="spinner"></div>
+                  <p>Analyzing conversation...</p>
+                </div>
+              ) : summaryData ? (
+                <>
+                  <div className="summary-section">
+                    <h4>Summary</h4>
+                    <p>{summaryData.summary || "No summary available"}</p>
+                  </div>
+                  {summaryData.key_points?.length > 0 && (
+                    <div className="summary-section">
+                      <h4>Key Points</h4>
+                      <ul>
+                        {summaryData.key_points.map((point, i) => <li key={i}>{point}</li>)}
+                      </ul>
+                    </div>
+                  )}
+                  {summaryData.action_items?.length > 0 && (
+                    <div className="summary-section">
+                      <h4>Action Items</h4>
+                      <ul>
+                        {summaryData.action_items.map((item, i) => <li key={i}>{item}</li>)}
+                      </ul>
+                    </div>
+                  )}
+                  {summaryData.sentiment && (
+                    <div className="summary-section">
+                      <h4>Sentiment</h4>
+                      <span className={`sentiment-badge ${summaryData.sentiment.toLowerCase()}`}>
+                        {summaryData.sentiment}
+                      </span>
+                    </div>
+                  )}
+                  {summaryData.topics?.length > 0 && (
+                    <div className="summary-section">
+                      <h4>Topics</h4>
+                      <div className="topics-list">
+                        {summaryData.topics.map((topic, i) => <span key={i} className="topic-tag">{topic}</span>)}
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <p>No summary data</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
