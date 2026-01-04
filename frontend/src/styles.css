@@ -1048,7 +1048,18 @@ body {
 
 /* Hide old nav */
 .app-nav {
-  display: none;
+  height: 60px;
+  background: white;
+  border-bottom: 1px solid #e5e7eb;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+}
+
+[data-theme="dark"] .app-nav {
+  background: #1a1a1a;
+  border-color: #2d2d2d;
 }
 
 /* Responsive */
