@@ -151,8 +151,8 @@ export default function DashboardPage() {
     setQrStatus("loading");
     setQrError("");
     try {
-      const res = await fetch(`${API_BASE}/whatsapp/start-auth`, {
-        method: "POST",
+      const res = await fetch(`${API_BASE}/auth/whatsapp/qr`, {
+        method: "GET",
         headers: authHeaders
       });
       if (!res.ok) throw new Error("Failed to start auth");
@@ -176,7 +176,7 @@ export default function DashboardPage() {
       }
       attempts++;
       try {
-        const res = await fetch(`${API_BASE}/whatsapp/status?session_id=${sessionId}`, { headers: authHeaders });
+        const res = await fetch(`${API_BASE}/auth/whatsapp/status?session_id=${sessionId}`, { headers: authHeaders });
         if (res.ok) {
           const data = await res.json();
           if (data.status === "connected") {
