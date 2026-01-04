@@ -474,19 +474,19 @@ export default function DashboardPage() {
         <aside className="info-sidebar">
           <div className="stats-grid">
             <div className="stat-box">
-              <div className="stat-value">{summary.total_conversations || conversations.length}</div>
+              <div className="stat-value">{summary.total_conversations ?? 0}</div>
               <div className="stat-label">Total Chats</div>
             </div>
             <div className="stat-box">
-              <div className="stat-value">{summary.total_messages || 342}</div>
+              <div className="stat-value">{summary.total_messages ?? 0}</div>
               <div className="stat-label">Messages</div>
             </div>
             <div className="stat-box">
-              <div className="stat-value">{summary.open_action_items || 12}</div>
+              <div className="stat-value">{summary.open_action_items ?? 0}</div>
               <div className="stat-label">Action Items</div>
             </div>
             <div className="stat-box">
-              <div className="stat-value">{summary.important_messages || 8}</div>
+              <div className="stat-value">{summary.important_messages ?? 0}</div>
               <div className="stat-label">Urgent</div>
             </div>
           </div>
