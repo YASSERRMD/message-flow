@@ -298,6 +298,23 @@ func (m *Manager) syncContacts(session *Session) {
 	m.log.Infof("Synced %d contacts", count)
 }
 
+// SyncContactsForTenant triggers a background contact sync for the given tenant
+func (m *Manager) SyncContactsForTenant(tenantID int64) {
+	m.mu.RLock()
+	var session *Session
+	for _, s := range m.sessions {
+		if s.TenantID == tenantID && s.Status == "connected" {
+			session = s
+			break
+		}
+	}
+	m.mu.RUnlock()
+
+	if session != nil {
+		go m.syncContacts(session)
+	}
+}
+
 func (m *Manager) DisconnectSession(tenantID int64) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
