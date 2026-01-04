@@ -28,30 +28,100 @@ export default function CollaborationPage({ token, csrf, role }) {
   const hasAnyFeature = rank >= 2;
 
   return (
-    <div className="collab-layout">
-      {!hasAnyFeature && (
-        <div className="empty-state-card">
-          <div className="empty-state-icon">👥</div>
-          <h3>Team Hub</h3>
-          <p>Welcome to the Team Hub! As a <strong>{roleLabels[role] || "Viewer"}</strong>, you currently have read-only access.</p>
-          <div className="feature-unlock-info">
-            <h4>Features available at higher roles:</h4>
-            <ul>
-              <li><strong>Member:</strong> Notifications, Activity Timeline</li>
-              <li><strong>Manager:</strong> Kanban Board, Analytics</li>
-              <li><strong>Admin:</strong> Team Management, Workflows, Integrations, Audit Logs</li>
-            </ul>
+  return (
+    <div className="main-container">
+      <aside className="conversations-sidebar" style={{ width: '280px' }}>
+        <div className="sidebar-header">
+          <h2 className="sidebar-title">Team Hub</h2>
+          <div className="sidebar-subtitle" style={{ fontSize: '13px', color: '#6b7280' }}>
+            Role: <span className="sentiment-badge positive">{roleLabels[role] || role}</span>
           </div>
         </div>
-      )}
-      {rank >= 4 && <TeamManagementPage token={token} csrf={csrf} />}
-      {rank >= 3 && <KanbanBoard token={token} csrf={csrf} />}
-      {rank >= 4 && <WorkflowListPage token={token} csrf={csrf} />}
-      {rank >= 4 && <IntegrationSettingsPage token={token} csrf={csrf} />}
-      {rank >= 2 && <NotificationCenter token={token} csrf={csrf} />}
-      {rank >= 3 && <AnalyticsPage token={token} csrf={csrf} />}
-      {rank >= 2 && <ActivityTimeline token={token} csrf={csrf} />}
-      {rank >= 4 && <AuditLogPage token={token} csrf={csrf} />}
+        <div className="conversations-list" style={{ padding: '16px' }}>
+          <div className="action-list-item">
+            <div className="action-icon-small"><i className="fas fa-columns"></i></div>
+            <div className="action-text-small">
+              <div className="action-title-small">Kanban Board</div>
+              <div className="action-desc-small">Manage tasks</div>
+            </div>
+          </div>
+          <div className="action-list-item">
+            <div className="action-icon-small"><i className="fas fa-project-diagram"></i></div>
+            <div className="action-text-small">
+              <div className="action-title-small">Workflows</div>
+              <div className="action-desc-small">Automations</div>
+            </div>
+          </div>
+          <div className="action-list-item">
+            <div className="action-icon-small"><i className="fas fa-chart-line"></i></div>
+            <div className="action-text-small">
+              <div className="action-title-small">Analytics</div>
+              <div className="action-desc-small">Team performance</div>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <div className="chat-area">
+        <div className="chat-header">
+          <div className="chat-user-info">
+            <div className="chat-avatar" style={{ background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)', color: 'white' }}>
+              <i className="fas fa-users"></i>
+            </div>
+            <div className="chat-details">
+              <h3>Collaboration Center</h3>
+              <p>Manage projects, tasks, and team settings</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="messages-container" style={{ padding: '24px' }}>
+          {!hasAnyFeature && (
+            <div className="empty-chat">
+              <div className="empty-icon"><i className="fas fa-lock"></i></div>
+              <h3>Restricted Access</h3>
+              <p>Your current role ({role}) does not have access to these features.</p>
+            </div>
+          )}
+
+          {hasAnyFeature && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '24px' }}>
+              {rank >= 3 && (
+                <div className="connect-card" style={{ maxWidth: '100%', padding: '0', overflow: 'hidden', textAlign: 'left' }}>
+                  <div style={{ padding: '20px', borderBottom: '1px solid #e5e7eb', background: '#f9fafb' }}>
+                    <h3 style={{ fontSize: '16px', fontWeight: '600' }}>Active Sprint</h3>
+                  </div>
+                  <div style={{ padding: '20px' }}>
+                    <KanbanBoard token={token} csrf={csrf} />
+                  </div>
+                </div>
+              )}
+
+              {rank >= 2 && (
+                <div className="connect-card" style={{ maxWidth: '100%', padding: '0', overflow: 'hidden', textAlign: 'left' }}>
+                  <div style={{ padding: '20px', borderBottom: '1px solid #e5e7eb', background: '#f9fafb' }}>
+                    <h3 style={{ fontSize: '16px', fontWeight: '600' }}>Recent Activity</h3>
+                  </div>
+                  <div style={{ padding: '20px' }}>
+                    <ActivityTimeline token={token} csrf={csrf} />
+                  </div>
+                </div>
+              )}
+
+              {rank >= 4 && (
+                <div className="connect-card" style={{ maxWidth: '100%', padding: '0', overflow: 'hidden', textAlign: 'left' }}>
+                  <div style={{ padding: '20px', borderBottom: '1px solid #e5e7eb', background: '#f9fafb' }}>
+                    <h3 style={{ fontSize: '16px', fontWeight: '600' }}>Team Members</h3>
+                  </div>
+                  <div style={{ padding: '20px' }}>
+                    <TeamManagementPage token={token} csrf={csrf} />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
