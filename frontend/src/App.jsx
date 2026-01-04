@@ -42,7 +42,7 @@ export default function App() {
   }, [token, csrf]);
 
   return (
-    <div>
+    <div className="app-container">
       {token && (
         <TopHeader
           onNavigate={setView}
