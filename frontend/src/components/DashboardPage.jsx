@@ -329,6 +329,35 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
     );
   }
 
+  // Not connected - show QR panel
+  if (authStatus !== "signed-in") {
+    return (
+      <div className="connect-screen">
+        <div className="connect-card">
+          <div className="connect-logo">
+            <div className="logo-icon"><i className="fas fa-comment-dots"></i></div>
+            <span>MessageFlow</span>
+          </div>
+          <h2>Connect WhatsApp</h2>
+          <p>Scan the QR code with your WhatsApp mobile app</p>
+          <div className="qr-box">
+            {qrStatus === "loading" ? (
+              <div className="qr-loading"><div className="spinner"></div></div>
+            ) : qrImage ? (
+              <img src={qrImage} alt="QR Code" />
+            ) : (
+              <div className="qr-placeholder"><i className="fas fa-qrcode"></i></div>
+            )}
+          </div>
+          {qrError && <div className="error-msg">{qrError}</div>}
+          <button className="connect-btn" onClick={startWhatsAppConnect} disabled={qrStatus === "loading"}>
+            {qrStatus === "loading" ? "Generating..." : "Generate QR Code"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
       <div className="main-container">
