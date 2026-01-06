@@ -30,6 +30,8 @@ type Message struct {
 	Timestamp      time.Time `json:"timestamp"`
 	MetadataJSON   *string   `json:"metadata_json"`
 	CreatedAt      time.Time `json:"created_at"`
+	IsOutbound     bool      `json:"is_outbound"`
+	SenderName     *string   `json:"sender_name"`
 }
 
 type DailySummary struct {

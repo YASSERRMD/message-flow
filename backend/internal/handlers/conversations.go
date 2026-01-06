@@ -77,6 +77,20 @@ func (a *API) GetConversationMessages(w http.ResponseWriter, r *http.Request, co
 			if err := rows.Scan(&msg.ID, &msg.TenantID, &msg.ConversationID, &msg.Sender, &msg.Content, &msg.Timestamp, &msg.MetadataJSON, &msg.CreatedAt); err != nil {
 				return err
 			}
+			// Simple logic: if sender is "agent" or "system", it's outbound.
+			// In a real app, you'd compare against the tenant's JID.
+			if msg.Sender == "agent" || msg.Sender == "me" {
+				msg.IsOutbound = true
+			} else {
+				// For inbound, try to format the sender as a name
+				// msg.Sender is likely a JID like 123456789@s.whatsapp.net
+				// We can just take the part before @
+				name := msg.Sender
+				if len(name) > 12 {
+					name = name[:12] + "..."
+				}
+				msg.SenderName = &name
+			}
 			messages = append(messages, msg)
 		}
 		return rows.Err()
