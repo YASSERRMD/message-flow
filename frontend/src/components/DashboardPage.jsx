@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import useStoredState from "../hooks/useStoredState.js";
+import DailySummaryCard from "./DailySummaryCard";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8081/api/v1";
 const WS_BASE = import.meta.env.VITE_WS_BASE || API_BASE.replace("http", "ws");
@@ -40,6 +41,7 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
   const [showSummary, setShowSummary] = useState(false);
   const [summaryData, setSummaryData] = useState(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
+  const [dailySummary, setDailySummary] = useState(null);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -92,9 +94,10 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
   const loadDashboard = useCallback(async () => {
     if (!token) return;
     try {
-      const [convRes, summRes] = await Promise.all([
+      const [convRes, summRes, dailyRes] = await Promise.all([
         fetch(`${API_BASE}/conversations`, { headers: authHeaders }),
-        fetch(`${API_BASE}/dashboard`, { headers: authHeaders })
+        fetch(`${API_BASE}/dashboard`, { headers: authHeaders }),
+        fetch(`${API_BASE}/daily-summary`, { headers: authHeaders })
       ]);
       if (convRes.ok) {
         const data = await convRes.json();
@@ -103,6 +106,10 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
       if (summRes.ok) {
         const data = await summRes.json();
         setSummary(data || defaultSummary);
+      }
+      if (dailyRes.ok) {
+        const data = await dailyRes.json();
+        setDailySummary(data);
       }
     } catch { }
   }, [token, authHeaders]);
@@ -517,6 +524,12 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
               <div className="stat-label">Urgent</div>
             </div>
           </div>
+
+          {dailySummary && (
+            <div className="info-section">
+              <DailySummaryCard summary={dailySummary} stats={summary} />
+            </div>
+          )}
 
           <div className="info-section">
             <h4 className="section-title">Quick Actions</h4>
