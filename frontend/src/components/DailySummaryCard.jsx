@@ -8,6 +8,7 @@ const parseKeyPoints = (value) => {
   }
 };
 
+// Component for displaying AI-generated daily summaries
 export default function DailySummaryCard({ summary, stats }) {
   const keyPoints = parseKeyPoints(summary?.key_points_json);
   const topics = keyPoints?.topics || [];

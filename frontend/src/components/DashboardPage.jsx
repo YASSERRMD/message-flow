@@ -449,15 +449,16 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
                   <div className="message-date">Today</div>
                   {messages.map((msg) => {
                     const isGroup = selectedConversation?.whatsapp_jid?.includes("@g.us");
-                    const senderName = msg.sender_name || (msg.sender_id || "").split("@")[0] || "Unknown";
-                    // Only show ticks for outbound messages
-                    // In a real app we'd check msg.status (pending, sent, delivered, read) to color the ticks
-                    // For now, we assume everything is "sent/delivered" (double check)
+                    const senderName = msg.sender_name || (msg.sender || "").split("@")[0] || "Unknown";
+
                     return (
                       <div key={msg.id} className={`message ${msg.is_outbound ? "outbound" : ""}`}>
                         <div className="message-bubble">
+                          {/* Show sender name for inbound group messages */}
                           {!msg.is_outbound && isGroup && (
-                            <div className="message-sender">{senderName}</div>
+                            <div className="message-sender" style={{ color: getAvatarStyle(senderName).color, fontSize: '12px', fontWeight: 600, marginBottom: '4px' }}>
+                              {senderName}
+                            </div>
                           )}
                           <div className="message-text">{msg.content}</div>
                           <div className="message-meta">
