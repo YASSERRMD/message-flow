@@ -466,15 +466,23 @@ func (a *API) SummarizeConversation(w http.ResponseWriter, r *http.Request) {
 		provider, err := a.LLM.Router.GetDefaultProvider(ctx, tenantID)
 		if err != nil {
 			fmt.Println("DEBUG: GetDefaultProvider error:", err)
-			writeError(w, http.StatusInternalServerError, "no default provider: "+err.Error())
-			return
+			// Continue to fallback
+		} else {
+			providerID = provider.GetConfig().ID
+			fmt.Println("DEBUG: Got default provider ID:", providerID)
 		}
-		providerID = provider.GetConfig().ID
-		fmt.Println("DEBUG: Got default provider ID:", providerID)
 	}
 
-	fmt.Println("DEBUG: Calling LLM.Summarize with providerID:", providerID)
-	result, err := a.LLM.Summarize(ctx, tenantID, providerID, messages)
+	var result *llm.SummaryResult
+	var err error
+
+	if providerID != 0 {
+		fmt.Println("DEBUG: Calling LLM.Summarize with providerID:", providerID)
+		result, err = a.LLM.Summarize(ctx, tenantID, providerID, messages)
+	} else {
+		err = errors.New("no provider available")
+	}
+
 	if err != nil {
 		fmt.Println("DEBUG: LLM.Summarize error:", err)
 		// Mock fallback: return sample summary when LLM fails
