@@ -70,7 +70,11 @@ func (a *API) ListConversations(w http.ResponseWriter, r *http.Request) {
 			); err != nil {
 				return err
 			}
-			convo.IsGroup = strings.Contains(convo.ContactNumber, "@g.us") || strings.HasPrefix(convo.ContactNumber, "12036")
+			jid := convo.ContactNumber
+			if convo.WhatsAppJID != nil && strings.TrimSpace(*convo.WhatsAppJID) != "" {
+				jid = *convo.WhatsAppJID
+			}
+			convo.IsGroup = strings.Contains(jid, "@g.us") || strings.HasPrefix(convo.ContactNumber, "12036")
 			conversations = append(conversations, convo)
 		}
 		return rows.Err()

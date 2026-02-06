@@ -54,6 +54,19 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
   const pendingScrollAdjustRef = useRef(null);
   const shouldStickToBottomRef = useRef(true);
 
+  const sortConversations = useCallback((list) => {
+    const copy = [...(list || [])];
+    copy.sort((a, b) => {
+      const at = a?.last_message_at ? new Date(a.last_message_at).getTime() : -Infinity;
+      const bt = b?.last_message_at ? new Date(b.last_message_at).getTime() : -Infinity;
+      if (at !== bt) return bt - at;
+      const ac = a?.created_at ? new Date(a.created_at).getTime() : -Infinity;
+      const bc = b?.created_at ? new Date(b.created_at).getTime() : -Infinity;
+      return bc - ac;
+    });
+    return copy;
+  }, []);
+
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
   }, [theme]);
@@ -81,7 +94,7 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
         const convRes = await fetch(`${API_BASE}/conversations`, { headers: authHeaders });
         if (convRes.ok) {
           const data = await convRes.json();
-          setConversations(data.data || []);
+          setConversations(sortConversations(data.data || []));
         }
       } catch { }
     };
@@ -142,7 +155,7 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
       ]);
       if (convRes.ok) {
         const data = await convRes.json();
-        setConversations(data.data || []);
+        setConversations(sortConversations(data.data || []));
       }
       if (summRes.ok) {
         const data = await summRes.json();
@@ -153,7 +166,7 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
         setDailySummary(data);
       }
     } catch { }
-  }, [token, authHeaders]);
+  }, [token, authHeaders, sortConversations]);
 
   useEffect(() => {
     if (authStatus === "signed-in") {
@@ -305,7 +318,7 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
             if (prev.some((m) => m.id === msg.id)) return prev;
             return [...prev, msg];
           });
-          setConversations((prev) =>
+          setConversations((prev) => sortConversations(
             prev.map((c) =>
               c.id === conversationId
                 ? {
@@ -315,7 +328,7 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
                 }
                 : c
             )
-          );
+          ));
         }
       } else {
         const err = await res.json().catch(() => ({}));
