@@ -147,13 +147,16 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
   const filteredConversations = useMemo(() => {
     let list = conversations;
     if (filter === "groups") {
-      list = list.filter(c => c.whatsapp_jid?.includes("@g.us"));
+      list = list.filter(c =>
+        (c.contact_number || "").includes("@g.us") ||
+        (c.contact_number || "").startsWith("12036")
+      );
     }
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       list = list.filter(c =>
         (c.contact_name || "").toLowerCase().includes(term) ||
-        (c.whatsapp_jid || "").toLowerCase().includes(term)
+        (c.contact_number || "").toLowerCase().includes(term)
       );
     }
     return list;
@@ -213,10 +216,13 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
   const handleSendMessage = async () => {
     if (!selectedConversation || !replyText.trim()) return;
     try {
-      const res = await fetch(`${API_BASE}/conversations/${selectedConversation.id}/messages`, {
+      const res = await fetch(`${API_BASE}/messages/reply`, {
         method: "POST",
         headers: authHeaders,
-        body: JSON.stringify({ content: replyText })
+        body: JSON.stringify({
+          conversation_id: selectedConversation.id,
+          content: replyText
+        })
       });
 
       if (res.ok) {
@@ -224,15 +230,8 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
         loadMessages(selectedConversation.id, 1);
         loadDashboard(); // Refresh sorting
       } else {
-        // If error (e.g. 404 conversation not found due to duplicate cleanup), refresh list
-        if (res.status === 404 || res.status === 500) {
-          alert("Sync error: Conversation might be stale. Refreshing...");
-          loadDashboard();
-          setSelectedConversation(null);
-        } else {
-          const err = await res.json();
-          alert(`Failed: ${err.error}`);
-        }
+        const err = await res.json().catch(() => ({}));
+        alert(`Failed to send: ${err.error || `HTTP ${res.status}`}`);
       }
     } catch (err) {
       alert("Error sending message: " + err.message);
@@ -336,35 +335,6 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
     );
   }
 
-  // Not connected - show QR panel
-  if (authStatus !== "signed-in") {
-    return (
-      <div className="connect-screen">
-        <div className="connect-card">
-          <div className="connect-logo">
-            <div className="logo-icon"><i className="fas fa-comment-dots"></i></div>
-            <span>MessageFlow</span>
-          </div>
-          <h2>Connect WhatsApp</h2>
-          <p>Scan the QR code with your WhatsApp mobile app</p>
-          <div className="qr-box">
-            {qrStatus === "loading" ? (
-              <div className="qr-loading"><div className="spinner"></div></div>
-            ) : qrImage ? (
-              <img src={qrImage} alt="QR Code" />
-            ) : (
-              <div className="qr-placeholder"><i className="fas fa-qrcode"></i></div>
-            )}
-          </div>
-          {qrError && <div className="error-msg">{qrError}</div>}
-          <button className="connect-btn" onClick={startWhatsAppConnect} disabled={qrStatus === "loading"}>
-            {qrStatus === "loading" ? "Generating..." : "Generate QR Code"}
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <>
       <div className="main-container">
@@ -380,8 +350,8 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
           </div>
           <div className="conversations-list">
             {filteredConversations.map((conv) => {
-              const name = conv.contact_name || conv.whatsapp_jid?.split("@")[0] || "Unknown";
-              const isGroup = conv.whatsapp_jid?.includes("@g.us");
+              const name = conv.contact_name || (conv.contact_number || "").split("@")[0] || "Unknown";
+              const isGroup = conv.is_group ?? ((conv.contact_number || "").includes("@g.us") || (conv.contact_number || "").startsWith("12036"));
               return (
                 <div
                   key={conv.id}
@@ -425,8 +395,8 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
                     )}
                   </div>
                   <div className="chat-details">
-                    <h3>{selectedConversation.contact_name || selectedConversation.whatsapp_jid?.split("@")[0]}</h3>
-                    <p>{selectedConversation.whatsapp_jid}</p>
+                    <h3>{selectedConversation.contact_name || (selectedConversation.contact_number || "").split("@")[0]}</h3>
+                    <p>{selectedConversation.contact_number}</p>
                   </div>
                 </div>
                 <div className="chat-actions">
@@ -444,16 +414,18 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
                 </div>
               </div>
 
-              <div className="messages-container">
-                <div className="message-group">
-                  <div className="message-date">Today</div>
-                  {messages.map((msg) => {
-                    const isGroup = selectedConversation?.whatsapp_jid?.includes("@g.us");
-                    const senderName = msg.sender_name || (msg.sender || "").split("@")[0] || "Unknown";
+                <div className="messages-container">
+                  <div className="message-group">
+                    <div className="message-date">Today</div>
+                    {messages.map((msg) => {
+                      const isGroup =
+                        (selectedConversation?.contact_number || "").includes("@g.us") ||
+                        (selectedConversation?.contact_number || "").startsWith("12036");
+                      const senderName = msg.sender_name || (msg.sender || "").split("@")[0] || "Unknown";
 
-                    return (
-                      <div key={msg.id} className={`message ${msg.is_outbound ? "outbound" : ""}`}>
-                        <div className="message-bubble">
+                      return (
+                        <div key={msg.id} className={`message ${msg.is_outbound ? "outbound" : ""}`}>
+                          <div className="message-bubble">
                           {/* Show sender name for inbound group messages */}
                           {!msg.is_outbound && isGroup && (
                             <div className="message-sender" style={{ color: getAvatarStyle(senderName).color, fontSize: '12px', fontWeight: 600, marginBottom: '4px' }}>
