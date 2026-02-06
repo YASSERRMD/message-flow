@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import useStoredState from "../hooks/useStoredState.js";
 import DailySummaryCard from "./DailySummaryCard";
 import ChatMessage from "./chat/ChatMessage.jsx";
-import { getAvatarStyle, getInitials } from "./chat/avatar.js";
+import Avatar from "./chat/Avatar.jsx";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8081/api/v1";
 const WS_BASE = import.meta.env.VITE_WS_BASE || API_BASE.replace("http", "ws");
@@ -44,7 +44,6 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
   const [summaryData, setSummaryData] = useState(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [dailySummary, setDailySummary] = useState(null);
-  const [avatarErrors, setAvatarErrors] = useState({});
   const [loadingMore, setLoadingMore] = useState(false);
   const [showAIChat, setShowAIChat] = useState(false);
   const [aiQuestion, setAiQuestion] = useState("");
@@ -397,7 +396,6 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
 
   const selectConversation = (conv) => {
     setSelectedConversation(conv);
-    setAvatarErrors({});
     setShowAIChat(false);
     setAiChatError("");
   };
@@ -473,18 +471,7 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
                   className={`conversation-item ${selectedConversation?.id === conv.id ? "active" : ""}`}
                   onClick={() => selectConversation(conv)}
                 >
-                  <div className="conv-avatar" style={avatarErrors[conv.id] ? getAvatarStyle(name) : {}}>
-                    {!avatarErrors[conv.id] && avatarSrc ? (
-                      <img
-                        src={avatarSrc}
-                        alt={name}
-                        className="avatar-img"
-                        onError={() => setAvatarErrors(prev => ({ ...prev, [conv.id]: true }))}
-                      />
-                    ) : (
-                      getInitials(name)
-                    )}
-                  </div>
+                  <Avatar className="conv-avatar" src={avatarSrc} name={name} />
                   <div className="conv-content">
                     <div className="conv-header">
                       <span className="conv-name">{name}</span>
@@ -507,18 +494,11 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
             <>
               <div className="chat-header">
                 <div className="chat-user-info">
-                  <div className="chat-avatar" style={avatarErrors[selectedConversation.id] ? getAvatarStyle(selectedConversation.contact_name || "") : {}}>
-                    {!avatarErrors[selectedConversation.id] && conversationAvatarSrc(selectedConversation.id) ? (
-                      <img
-                        src={conversationAvatarSrc(selectedConversation.id)}
-                        alt="Profile"
-                        className="avatar-img"
-                        onError={() => setAvatarErrors(prev => ({ ...prev, [selectedConversation.id]: true }))}
-                      />
-                    ) : (
-                      getInitials(selectedConversation.contact_name || selectedConversation.contact_number)
-                    )}
-                  </div>
+                  <Avatar
+                    className="chat-avatar"
+                    src={conversationAvatarSrc(selectedConversation.id)}
+                    name={selectedConversation.contact_name || selectedConversation.contact_number}
+                  />
                   <div className="chat-details">
                     <h3>{selectedConversation.contact_name || (selectedConversation.contact_number || "").split("@")[0]}</h3>
                     <p>{selectedConversation.contact_number}</p>
