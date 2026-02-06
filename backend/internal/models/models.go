@@ -20,6 +20,7 @@ type Conversation struct {
 	LastMessageAt     *time.Time `json:"last_message_at"`
 	CreatedAt         time.Time  `json:"created_at"`
 	ProfilePictureURL *string    `json:"profile_picture_url"`
+	UnreadCount       int64      `json:"unread_count"`
 }
 
 type Message struct {

@@ -1,0 +1,3 @@
+ALTER TABLE conversations
+ADD COLUMN IF NOT EXISTS unread_count BIGINT NOT NULL DEFAULT 0;
+
