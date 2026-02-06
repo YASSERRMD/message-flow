@@ -40,10 +40,10 @@ func (s *Syncer) Attach(tenantID int64, client *whatsmeow.Client) {
 		switch event := evt.(type) {
 		case *events.Message:
 			log.Printf("[Syncer] Received *events.Message from %s", event.Info.Chat.String())
-			s.handleMessage(ctx, tenantID, client, event.Info, event.Message, event.Info.Chat, event.Info.PushName)
+			s.handleMessage(ctx, tenantID, client, event.Info, event.Message, event.Info.Chat, event.Info.PushName, false)
 		case events.Message:
 			log.Printf("[Syncer] Received events.Message from %s", event.Info.Chat.String())
-			s.handleMessage(ctx, tenantID, client, event.Info, event.Message, event.Info.Chat, event.Info.PushName)
+			s.handleMessage(ctx, tenantID, client, event.Info, event.Message, event.Info.Chat, event.Info.PushName, false)
 		case *events.HistorySync:
 			log.Printf("[Syncer] Received *events.HistorySync with %d conversations", len(event.Data.GetConversations()))
 			s.handleHistorySync(ctx, tenantID, client, event)
@@ -79,12 +79,12 @@ func (s *Syncer) handleHistorySync(ctx context.Context, tenantID int64, client *
 				log.Printf("[Syncer] Failed to parse message: %v", err)
 				continue
 			}
-			s.handleMessage(ctx, tenantID, client, msgEvt.Info, msgEvt.Message, chatJID, contactName)
+			s.handleMessage(ctx, tenantID, client, msgEvt.Info, msgEvt.Message, chatJID, contactName, true)
 		}
 	}
 }
 
-func (s *Syncer) handleMessage(ctx context.Context, tenantID int64, client *whatsmeow.Client, info types.MessageInfo, msg *waE2E.Message, chatJID types.JID, contactName string) {
+func (s *Syncer) handleMessage(ctx context.Context, tenantID int64, client *whatsmeow.Client, info types.MessageInfo, msg *waE2E.Message, chatJID types.JID, contactName string, isHistory bool) {
 	if s == nil || s.Store == nil {
 		log.Printf("[Syncer] handleMessage: nil store")
 		return
@@ -120,6 +120,17 @@ func (s *Syncer) handleMessage(ctx context.Context, tenantID int64, client *what
 	messageID, inserted, err := s.insertMessage(ctx, tenantID, conversationID, info, content, chatJID, mediaInfo)
 	if err != nil || !inserted {
 		return
+	}
+
+	// Only increment unread on realtime inbound messages.
+	if !isHistory && !info.IsFromMe {
+		_ = s.Store.WithTenantConn(ctx, tenantID, func(conn *pgxpool.Conn) error {
+			_, err := conn.Exec(ctx, `
+					UPDATE conversations
+					SET unread_count = unread_count + 1
+					WHERE tenant_id=$1 AND id=$2`, tenantID, conversationID)
+			return err
+		})
 	}
 
 	if s.Queue != nil {

@@ -125,6 +125,9 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
         const msg = await fetchMessage(data.message_id);
         if (msg) {
           appendMessage(msg);
+          if (data.type === "message.received" && selectedConversation?.id === msg.conversation_id) {
+            await markConversationRead(msg.conversation_id);
+          }
         }
         await refreshConversations();
 
@@ -137,7 +140,7 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
       } catch { }
     };
     return () => ws.close();
-  }, [token, authStatus, authHeaders, selectedConversation]);
+  }, [token, authStatus, authHeaders, selectedConversation, markConversationRead, sortConversations]);
 
   const authHeaders = useMemo(() => ({
     "Content-Type": "application/json",
@@ -198,13 +201,27 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
     }
   }, [authHeaders]);
 
+  const markConversationRead = useCallback(async (conversationId) => {
+    if (!conversationId) return;
+    try {
+      await fetch(`${API_BASE}/conversations/${conversationId}/read`, {
+        method: "POST",
+        headers: authHeaders
+      });
+    } catch { }
+    setConversations((prev) =>
+      prev.map((c) => (c.id === conversationId ? { ...c, unread_count: 0 } : c))
+    );
+  }, [authHeaders]);
+
   useEffect(() => {
     if (selectedConversation) {
       loadMessages(selectedConversation.id, 1);
+      markConversationRead(selectedConversation.id);
     } else {
       setMessages([]);
     }
-  }, [selectedConversation, loadMessages]);
+  }, [selectedConversation, loadMessages, markConversationRead]);
 
   useEffect(() => {
     const container = messagesContainerRef.current;
@@ -232,6 +249,8 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
         (c.contact_number || "").includes("@g.us") ||
         (c.contact_number || "").startsWith("12036")
       );
+    } else if (filter === "unread") {
+      list = list.filter(c => (c.unread_count || 0) > 0);
     }
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
@@ -510,13 +529,16 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
                       <span className="conv-time">{formatTime(conv.last_message_at)}</span>
                     </div>
                     <div className="conv-preview">{conv.last_message || "No messages yet..."}</div>
-                    <div className="conv-meta">
-                      {isGroup && <span><i className="fas fa-users"></i> Group</span>}
-                    </div>
+                  <div className="conv-meta">
+                    {isGroup && <span><i className="fas fa-users"></i> Group</span>}
+                    {(conv.unread_count || 0) > 0 && (
+                      <span className="unread-badge">{conv.unread_count}</span>
+                    )}
                   </div>
                 </div>
-              );
-            })}
+              </div>
+            );
+          })}
           </div>
         </aside>
 

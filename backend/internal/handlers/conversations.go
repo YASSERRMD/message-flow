@@ -38,6 +38,7 @@ func (a *API) ListConversations(w http.ResponseWriter, r *http.Request) {
 					c.last_message_at,
 					c.created_at,
 					c.profile_picture_url,
+					c.unread_count,
 					lm.content
 				FROM conversations c
 				LEFT JOIN LATERAL (
@@ -66,6 +67,7 @@ func (a *API) ListConversations(w http.ResponseWriter, r *http.Request) {
 				&convo.LastMessageAt,
 				&convo.CreatedAt,
 				&convo.ProfilePictureURL,
+				&convo.UnreadCount,
 				&convo.LastMessage,
 			); err != nil {
 				return err
