@@ -59,13 +59,15 @@ func (a *API) GetConversationMessages(w http.ResponseWriter, r *http.Request, co
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
-	messages := []models.Message{}
+	// We query newest-first for efficient "latest messages" behavior, then reverse to return
+	// chronological order for display.
+	messagesDesc := []models.Message{}
 	if err := a.Store.WithTenantConn(ctx, tenantID, func(conn *pgxpool.Conn) error {
 		rows, err := conn.Query(ctx, `
 			SELECT id, tenant_id, conversation_id, sender, content, timestamp, metadata_json, created_at
 			FROM messages
 			WHERE tenant_id=$1 AND conversation_id=$2
-			ORDER BY timestamp ASC
+			ORDER BY timestamp DESC
 			LIMIT $3 OFFSET $4`, tenantID, conversationID, limit, offset)
 		if err != nil {
 			return err
@@ -91,7 +93,7 @@ func (a *API) GetConversationMessages(w http.ResponseWriter, r *http.Request, co
 				}
 				msg.SenderName = &name
 			}
-			messages = append(messages, msg)
+			messagesDesc = append(messagesDesc, msg)
 		}
 		return rows.Err()
 	}); err != nil {
@@ -99,8 +101,13 @@ func (a *API) GetConversationMessages(w http.ResponseWriter, r *http.Request, co
 		return
 	}
 
+	// Reverse in-place to chronological order.
+	for i, j := 0, len(messagesDesc)-1; i < j; i, j = i+1, j-1 {
+		messagesDesc[i], messagesDesc[j] = messagesDesc[j], messagesDesc[i]
+	}
+
 	writeJSON(w, http.StatusOK, map[string]any{
-		"data":  messages,
+		"data":  messagesDesc,
 		"page":  page,
 		"limit": limit,
 	})
