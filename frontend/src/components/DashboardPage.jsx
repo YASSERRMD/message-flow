@@ -89,15 +89,6 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
     if (!token || authStatus !== "signed-in") return;
     const wsUrl = `${WS_BASE}/ws?token=${token}`;
     const ws = new WebSocket(wsUrl);
-    const refreshConversations = async () => {
-      try {
-        const convRes = await fetch(`${API_BASE}/conversations`, { headers: authHeaders });
-        if (convRes.ok) {
-          const data = await convRes.json();
-          setConversations(sortConversations(data.data || []));
-        }
-      } catch { }
-    };
 
     const fetchMessage = async (messageId) => {
       const res = await fetch(`${API_BASE}/messages/${messageId}`, { headers: authHeaders });
@@ -117,19 +108,36 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
       });
     };
 
+    const applyConversationUpdate = (update) => {
+      if (!update?.id) return;
+      setConversations((prev) => sortConversations(
+        prev.map((c) => (c.id === update.id ? { ...c, ...update } : c))
+      ));
+    };
+
     ws.onmessage = async (event) => {
       try {
         const data = JSON.parse(event.data);
-        if (data?.type !== "message.received" && data?.type !== "message.reply") return;
+        if (data?.type !== "message.received" && data?.type !== "message.reply" && data?.type !== "message.forward") return;
 
-        const msg = await fetchMessage(data.message_id);
+        const msg = data?.message || await fetchMessage(data.message_id);
         if (msg) {
           appendMessage(msg);
           if (data.type === "message.received" && selectedConversation?.id === msg.conversation_id) {
             await markConversationRead(msg.conversation_id);
           }
         }
-        await refreshConversations();
+
+        if (data?.conversation) {
+          applyConversationUpdate(data.conversation);
+        } else if (msg?.conversation_id) {
+          // Best-effort update when older backend doesn't send convo payload.
+          applyConversationUpdate({
+            id: msg.conversation_id,
+            last_message: msg.content,
+            last_message_at: msg.timestamp
+          });
+        }
 
         if (data.type === "message.received" && Notification.permission === "granted") {
           new Notification("New WhatsApp Message", {
