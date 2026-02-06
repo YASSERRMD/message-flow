@@ -386,6 +386,8 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
   const selectConversation = (conv) => {
     setSelectedConversation(conv);
     setAvatarErrors({});
+    setShowAIChat(false);
+    setAiChatError("");
   };
 
   const conversationAvatarSrc = useCallback((conversationId) => {
