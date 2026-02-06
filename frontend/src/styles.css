@@ -692,6 +692,37 @@ body {
   border-color: #2d2d2d;
 }
 
+.wa-media {
+  margin-bottom: 8px;
+}
+
+.media-placeholder {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px dashed #d1d5db;
+  background: rgba(249, 250, 251, 0.9);
+  color: #111b21;
+  font-size: 13px;
+}
+
+[data-theme="dark"] .media-placeholder {
+  border-color: #2d2d2d;
+  background: rgba(37, 37, 37, 0.9);
+  color: #e9edef;
+}
+
+.media-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.media-label {
+  font-weight: 600;
+}
+
 .message.outbound .message-bubble {
   background: #d9fdd3;
   /* WhatsApp Light Green */

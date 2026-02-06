@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import useStoredState from "../hooks/useStoredState.js";
 import DailySummaryCard from "./DailySummaryCard";
 
@@ -49,6 +49,9 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
   const [aiChatLoading, setAiChatLoading] = useState(false);
   const [aiChatError, setAiChatError] = useState("");
   const [aiTurnsByConversation, setAiTurnsByConversation] = useState({});
+  const messagesContainerRef = useRef(null);
+  const pendingScrollAdjustRef = useRef(null);
+  const shouldStickToBottomRef = useRef(true);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -136,6 +139,13 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
       if (page === 1) {
         setMessages(newMessages);
       } else {
+        const container = messagesContainerRef.current;
+        if (container) {
+          pendingScrollAdjustRef.current = {
+            prevScrollHeight: container.scrollHeight,
+            prevScrollTop: container.scrollTop
+          };
+        }
         // Page > 1 is older messages. Prepend so overall order stays chronological.
         setMessages(prev => [...newMessages, ...prev]);
       }
@@ -151,6 +161,24 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
       setMessages([]);
     }
   }, [selectedConversation, loadMessages]);
+
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    if (pendingScrollAdjustRef.current) {
+      const { prevScrollHeight, prevScrollTop } = pendingScrollAdjustRef.current;
+      const nextScrollHeight = container.scrollHeight;
+      const delta = nextScrollHeight - prevScrollHeight;
+      container.scrollTop = prevScrollTop + delta;
+      pendingScrollAdjustRef.current = null;
+      return;
+    }
+
+    if (shouldStickToBottomRef.current) {
+      container.scrollTop = container.scrollHeight;
+    }
+  }, [messages.length, selectedConversation?.id]);
 
   const filteredConversations = useMemo(() => {
     let list = conversations;
@@ -358,6 +386,8 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
   const selectConversation = (conv) => {
     setSelectedConversation(conv);
     setAvatarErrors({});
+    setShowAIChat(false);
+    setAiChatError("");
   };
 
   const conversationAvatarSrc = useCallback((conversationId) => {
@@ -366,6 +396,10 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
   }, [token]);
 
   const handleMessagesScroll = useCallback((e) => {
+    const el = e.currentTarget;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    shouldStickToBottomRef.current = distanceFromBottom < 60;
+
     if (loadingMore || !selectedConversation || !hasMoreMessages) return;
     if (e.currentTarget.scrollTop <= 60) {
       setLoadingMore(true);
@@ -373,6 +407,27 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
         .finally(() => setLoadingMore(false));
     }
   }, [loadingMore, selectedConversation, hasMoreMessages, loadMessages, messagesPage]);
+
+  const parseMetadata = (metadataJson) => {
+    if (!metadataJson) return null;
+    try {
+      return JSON.parse(metadataJson);
+    } catch {
+      return null;
+    }
+  };
+
+  const extractMedia = (metadataJson) => {
+    const meta = parseMetadata(metadataJson);
+    const media = meta?.media;
+    if (!media || !media.has_media) return null;
+    return media;
+  };
+
+  const shouldHidePlaceholder = (content) => {
+    if (!content) return true;
+    return /^\[(image|video|audio|document|sticker)\]$/i.test(content.trim());
+  };
 
   // Not connected - show QR panel
   if (authStatus !== "signed-in") {
@@ -494,7 +549,7 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
                 </div>
               </div>
 
-                <div className="messages-container" onScroll={handleMessagesScroll}>
+                <div className="messages-container" onScroll={handleMessagesScroll} ref={messagesContainerRef}>
                   <div className="message-group">
                     <div className="message-date">Today</div>
                     {loadingMore && hasMoreMessages && (
@@ -506,6 +561,8 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
                         (selectedConversation?.contact_number || "").includes("@g.us") ||
                         (selectedConversation?.contact_number || "").startsWith("12036");
                       const senderName = msg.sender_name || (msg.sender || "").split("@")[0] || "Unknown";
+                      const media = extractMedia(msg.metadata_json);
+                      const hideText = shouldHidePlaceholder(msg.content);
 
                       return (
                         <div key={msg.id} className={`message ${msg.is_outbound ? "outbound" : ""}`}>
@@ -516,7 +573,48 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
                               {senderName}
                             </div>
                           )}
-                          <div className="message-text">{msg.content}</div>
+                          {media?.has_media && (
+                            <div className={`wa-media wa-media-${media.media_type}`}>
+                              {media.media_type === "image" && (
+                                <div className="media-placeholder">
+                                  <span className="media-icon">📷</span>
+                                  <span className="media-label">Image</span>
+                                </div>
+                              )}
+                              {media.media_type === "video" && (
+                                <div className="media-placeholder">
+                                  <span className="media-icon">🎬</span>
+                                  <span className="media-label">
+                                    Video{media.duration_seconds ? ` (${Math.floor(media.duration_seconds / 60)}:${String(media.duration_seconds % 60).padStart(2, "0")})` : ""}
+                                  </span>
+                                </div>
+                              )}
+                              {media.media_type === "audio" && (
+                                <div className="media-placeholder">
+                                  <span className="media-icon">🎵</span>
+                                  <span className="media-label">
+                                    Audio{media.duration_seconds ? ` (${Math.floor(media.duration_seconds / 60)}:${String(media.duration_seconds % 60).padStart(2, "0")})` : ""}
+                                  </span>
+                                </div>
+                              )}
+                              {media.media_type === "document" && (
+                                <div className="media-placeholder">
+                                  <span className="media-icon">📄</span>
+                                  <span className="media-label">{media.file_name || "Document"}</span>
+                                </div>
+                              )}
+                              {media.media_type === "sticker" && (
+                                <div className="media-placeholder">
+                                  <span className="media-icon">🎭</span>
+                                  <span className="media-label">Sticker</span>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {!hideText && (
+                            <div className="message-text">{msg.content}</div>
+                          )}
                           <div className="message-meta">
                             <span className="message-time">{formatTime(msg.timestamp || msg.created_at)}</span>
                             {msg.is_outbound && (
@@ -525,12 +623,12 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
                               </span>
                             )}
                           </div>
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
 
               <div className="message-input-area">
                 <div className="input-wrapper">
