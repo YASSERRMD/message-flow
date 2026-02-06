@@ -73,27 +73,57 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
 
   useEffect(() => {
     if (!token || authStatus !== "signed-in") return;
-    const wsUrl = `${WS_BASE}/ws?tenant_id=${tenantId}&token=${token}`;
+    const wsUrl = `${WS_BASE}/ws?token=${token}`;
     const ws = new WebSocket(wsUrl);
-    ws.onmessage = (event) => {
+    const refreshConversations = async () => {
+      try {
+        const convRes = await fetch(`${API_BASE}/conversations`, { headers: authHeaders });
+        if (convRes.ok) {
+          const data = await convRes.json();
+          setConversations(data.data || []);
+        }
+      } catch { }
+    };
+
+    const fetchMessage = async (messageId) => {
+      const res = await fetch(`${API_BASE}/messages/${messageId}`, { headers: authHeaders });
+      if (!res.ok) return null;
+      return res.json().catch(() => null);
+    };
+
+    const appendMessage = (msg) => {
+      if (!msg?.id || !msg?.conversation_id) return;
+
+      // Reset per conversation.
+      if (selectedConversation?.id !== msg.conversation_id) return;
+
+      setMessages(prev => {
+        if (prev.some(m => m.id === msg.id)) return prev;
+        return [...prev, msg];
+      });
+    };
+
+    ws.onmessage = async (event) => {
       try {
         const data = JSON.parse(event.data);
-        if (data.type === "message.received") {
-          loadDashboard();
-          if (selectedConversation?.id === data.conversation_id) {
-            loadMessages(selectedConversation.id, 1);
-          }
-          if (Notification.permission === "granted") {
-            new Notification("New WhatsApp Message", {
-              body: `New message received`,
-              icon: "/logo.svg"
-            });
-          }
+        if (data?.type !== "message.received" && data?.type !== "message.reply") return;
+
+        const msg = await fetchMessage(data.message_id);
+        if (msg) {
+          appendMessage(msg);
+        }
+        await refreshConversations();
+
+        if (data.type === "message.received" && Notification.permission === "granted") {
+          new Notification("New WhatsApp Message", {
+            body: `New message received`,
+            icon: "/logo.svg"
+          });
         }
       } catch { }
     };
     return () => ws.close();
-  }, [token, authStatus, tenantId, selectedConversation]);
+  }, [token, authStatus, authHeaders, selectedConversation]);
 
   const authHeaders = useMemo(() => ({
     "Content-Type": "application/json",
