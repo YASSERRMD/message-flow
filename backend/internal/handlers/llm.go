@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -406,52 +405,40 @@ func (a *API) BatchAnalyze(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) SummarizeConversation(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("DEBUG: SummarizeConversation ENTRY")
 	var req summarizeRequest
 	if err := readJSON(r, &req); err != nil {
-		fmt.Println("DEBUG: readJSON failed:", err)
 		writeError(w, http.StatusBadRequest, "invalid request")
 		return
 	}
-	fmt.Println("DEBUG: readJSON OK, req:", req)
 	tenantID := a.tenantID(r)
-	fmt.Println("DEBUG: tenantID:", tenantID)
 	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Minute)
 	defer cancel()
 
 	messages := req.Messages
 	conversationID := req.ConversationID
-	fmt.Println("DEBUG: conversationID:", conversationID, "messages len:", len(messages))
 	if len(messages) == 0 && conversationID != nil {
-		fmt.Println("DEBUG: Loading messages from DB for conversation:", *conversationID)
 		messages = []string{}
 		if err := a.Store.WithTenantConn(ctx, tenantID, func(conn *pgxpool.Conn) error {
 			rows, err := conn.Query(ctx, `
 				SELECT content FROM messages WHERE tenant_id=$1 AND conversation_id=$2 ORDER BY timestamp ASC`, tenantID, *conversationID)
 			if err != nil {
-				fmt.Println("DEBUG: DB query error:", err)
 				return err
 			}
 			defer rows.Close()
 			for rows.Next() {
 				var content string
 				if err := rows.Scan(&content); err != nil {
-					fmt.Println("DEBUG: DB scan error:", err)
 					return err
 				}
 				messages = append(messages, content)
 			}
-			fmt.Println("DEBUG: Loaded", len(messages), "messages from DB")
 			return rows.Err()
 		}); err != nil {
-			fmt.Println("DEBUG: WithTenantConn error:", err)
 			writeError(w, http.StatusInternalServerError, "failed to load messages: "+err.Error())
 			return
 		}
 	}
-	fmt.Println("DEBUG: Total messages:", len(messages))
 	if len(messages) == 0 {
-		fmt.Println("DEBUG: No messages, returning 400")
 		writeError(w, http.StatusBadRequest, "messages or conversation_id required")
 		return
 	}
@@ -460,16 +447,12 @@ func (a *API) SummarizeConversation(w http.ResponseWriter, r *http.Request) {
 	if req.ProviderID != nil {
 		providerID = *req.ProviderID
 	}
-	fmt.Println("DEBUG: providerID from request:", providerID)
 	if providerID == 0 {
-		fmt.Println("DEBUG: Getting default provider...")
 		provider, err := a.LLM.Router.GetDefaultProvider(ctx, tenantID)
 		if err != nil {
-			fmt.Println("DEBUG: GetDefaultProvider error:", err)
 			// Continue to fallback
 		} else {
 			providerID = provider.GetConfig().ID
-			fmt.Println("DEBUG: Got default provider ID:", providerID)
 		}
 	}
 
@@ -477,14 +460,12 @@ func (a *API) SummarizeConversation(w http.ResponseWriter, r *http.Request) {
 	var err error
 
 	if providerID != 0 {
-		fmt.Println("DEBUG: Calling LLM.Summarize with providerID:", providerID)
 		result, err = a.LLM.Summarize(ctx, tenantID, providerID, messages)
 	} else {
 		err = errors.New("no provider available")
 	}
 
 	if err != nil {
-		fmt.Println("DEBUG: LLM.Summarize error:", err)
 		// Mock fallback: return sample summary when LLM fails
 		result = &llm.SummaryResult{
 			Summary:     "This conversation discusses various topics. Due to a temporary service issue, an AI-generated summary is not available at this time.",
@@ -494,7 +475,6 @@ func (a *API) SummarizeConversation(w http.ResponseWriter, r *http.Request) {
 			Topics:      []string{"general"},
 		}
 	}
-	fmt.Println("DEBUG: Summarize completed, writing response")
 
 	if conversationID != nil {
 		keyPoints, _ := json.Marshal(map[string]any{

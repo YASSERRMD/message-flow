@@ -115,6 +115,14 @@ func (rt *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
+		if len(segments) == 2 && segments[1] == "chat" {
+			if r.Method == http.MethodPost {
+				if id, ok := handlers.ParseID(segments[0]); ok {
+					rt.api.ChatConversation(w, r, id)
+					return
+				}
+			}
+		}
 		if len(segments) == 2 && segments[1] == "messages" {
 			if r.Method == http.MethodGet {
 				if id, ok := handlers.ParseID(segments[0]); ok {

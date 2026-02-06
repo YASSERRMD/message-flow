@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"time"
 
 	cohere "github.com/cohere-ai/cohere-go"
@@ -114,6 +115,40 @@ func (c *CohereProvider) Summarize(ctx context.Context, messages []string) (*con
 		return nil, err
 	}
 	return &parsed, nil
+}
+
+func (c *CohereProvider) Chat(ctx context.Context, prompt string) (string, error) {
+	if c.client == nil {
+		return "", errors.New("cohere client not initialized")
+	}
+	var response *cohere.GenerateResponse
+	ctx, cancel := context.WithTimeout(ctx, 45*time.Second)
+	defer cancel()
+
+	err := c.retrier.Do(ctx, func() error {
+		start := time.Now()
+		maxTokens := uint(c.config.MaxTokens)
+		temperature := c.config.Temperature
+		result, err := c.client.Generate(cohere.GenerateOptions{
+			Model:       c.config.ModelName,
+			Prompt:      prompt,
+			MaxTokens:   &maxTokens,
+			Temperature: &temperature,
+		})
+		if err != nil {
+			return err
+		}
+		response = result
+		c.captureUsage("chat", start)
+		return nil
+	})
+	if err != nil {
+		return "", err
+	}
+	if response == nil || len(response.Generations) == 0 {
+		return "", errors.New("empty response")
+	}
+	return strings.TrimSpace(response.Generations[0].Text), nil
 }
 
 func (c *CohereProvider) ExtractActions(ctx context.Context, text string) ([]string, error) {
