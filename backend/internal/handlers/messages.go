@@ -2,7 +2,9 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -21,6 +23,55 @@ type forwardRequest struct {
 	MessageID            int64  `json:"message_id"`
 	TargetConversationID int64  `json:"target_conversation_id"`
 	Sender               string `json:"sender"`
+}
+
+func (a *API) GetMessage(w http.ResponseWriter, r *http.Request, messageID int64) {
+	tenantID := a.tenantID(r)
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	var msg models.Message
+	if err := a.Store.WithTenantConn(ctx, tenantID, func(conn *pgxpool.Conn) error {
+		return conn.QueryRow(ctx, `
+			SELECT id, tenant_id, conversation_id, sender, content, timestamp, metadata_json, created_at
+			FROM messages
+			WHERE tenant_id=$1 AND id=$2`, tenantID, messageID).Scan(
+			&msg.ID,
+			&msg.TenantID,
+			&msg.ConversationID,
+			&msg.Sender,
+			&msg.Content,
+			&msg.Timestamp,
+			&msg.MetadataJSON,
+			&msg.CreatedAt,
+		)
+	}); err != nil {
+		writeError(w, http.StatusNotFound, "message not found")
+		return
+	}
+
+	if msg.Sender == "agent" || msg.Sender == "me" {
+		msg.IsOutbound = true
+	} else {
+		if msg.MetadataJSON != nil && *msg.MetadataJSON != "" {
+			var meta map[string]any
+			if err := json.Unmarshal([]byte(*msg.MetadataJSON), &meta); err == nil {
+				if pn, ok := meta["push_name"].(string); ok && strings.TrimSpace(pn) != "" {
+					value := strings.TrimSpace(pn)
+					msg.SenderName = &value
+				}
+			}
+		}
+		if msg.SenderName == nil {
+			name := msg.Sender
+			if len(name) > 12 {
+				name = name[:12] + "..."
+			}
+			msg.SenderName = &name
+		}
+	}
+
+	writeJSON(w, http.StatusOK, msg)
 }
 
 func (a *API) ReplyMessage(w http.ResponseWriter, r *http.Request) {
