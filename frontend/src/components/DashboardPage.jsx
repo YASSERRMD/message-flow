@@ -445,6 +445,68 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
     return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   };
 
+  const toDayKey = (dateStr) => {
+    if (!dateStr) return "unknown";
+    const d = new Date(dateStr);
+    if (Number.isNaN(d.getTime())) return "unknown";
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  };
+
+  const formatDayLabel = (dateStr) => {
+    const d = new Date(dateStr);
+    if (Number.isNaN(d.getTime())) return "";
+    const today = new Date();
+    const todayKey = toDayKey(today.toISOString());
+    const y = new Date(today);
+    y.setDate(today.getDate() - 1);
+    const yesterdayKey = toDayKey(y.toISOString());
+    const key = toDayKey(d.toISOString());
+    if (key === todayKey) return "Today";
+    if (key === yesterdayKey) return "Yesterday";
+    return d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
+  };
+
+  const isGroupConversation = useMemo(() => {
+    if (!selectedConversation) return false;
+    return (
+      (selectedConversation.whatsapp_jid || "").includes("@g.us") ||
+      (selectedConversation.contact_number || "").includes("@g.us") ||
+      (selectedConversation.contact_number || "").startsWith("12036")
+    );
+  }, [selectedConversation]);
+
+  const renderedMessages = useMemo(() => {
+    const out = [];
+    let lastDayKey = null;
+    for (const msg of messages) {
+      const t = msg.timestamp || msg.created_at;
+      const dayKey = toDayKey(t);
+      if (dayKey !== lastDayKey) {
+        const label = formatDayLabel(t);
+        if (label) {
+          out.push(
+            <div key={`day-${dayKey}`} className="message-date">
+              {label}
+            </div>
+          );
+        }
+        lastDayKey = dayKey;
+      }
+      out.push(
+        <ChatMessage
+          key={msg.id}
+          message={msg}
+          isGroup={isGroupConversation}
+          formatTime={formatTime}
+        />
+      );
+    }
+    return out;
+  }, [messages, isGroupConversation]);
+
   const selectConversation = (conv) => {
     setSelectedConversation(conv);
     setShowAIChat(false);
@@ -576,25 +638,10 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
 
                 <div className="messages-container" onScroll={handleMessagesScroll} ref={messagesContainerRef}>
                   <div className="message-group">
-                    <div className="message-date">Today</div>
                     {loadingMore && hasMoreMessages && (
                       <div className="message-date">Loading older messages...</div>
                     )}
-                    {messages.map((msg) => {
-                      const isGroup =
-                        (selectedConversation?.whatsapp_jid || "").includes("@g.us") ||
-                        (selectedConversation?.contact_number || "").includes("@g.us") ||
-                        (selectedConversation?.contact_number || "").startsWith("12036");
-
-                      return (
-                        <ChatMessage
-                          key={msg.id}
-                          message={msg}
-                          isGroup={isGroup}
-                          formatTime={formatTime}
-                        />
-                      );
-                    })}
+                    {renderedMessages}
                   </div>
                 </div>
 
