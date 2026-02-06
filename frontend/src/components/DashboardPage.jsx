@@ -351,7 +351,7 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
           <div className="conversations-list">
             {filteredConversations.map((conv) => {
               const name = conv.contact_name || (conv.contact_number || "").split("@")[0] || "Unknown";
-              const isGroup = (conv.contact_number || "").includes("@g.us") || (conv.contact_number || "").startsWith("12036");
+              const isGroup = conv.is_group ?? ((conv.contact_number || "").includes("@g.us") || (conv.contact_number || "").startsWith("12036"));
               return (
                 <div
                   key={conv.id}
@@ -370,7 +370,7 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
                       <span className="conv-name">{name}</span>
                       <span className="conv-time">{formatTime(conv.last_message_at)}</span>
                     </div>
-                    <div className="conv-preview">Open chat to view messages</div>
+                    <div className="conv-preview">{conv.last_message || "No messages yet..."}</div>
                     <div className="conv-meta">
                       {isGroup && <span><i className="fas fa-users"></i> Group</span>}
                     </div>
