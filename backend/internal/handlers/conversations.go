@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -18,24 +19,55 @@ func (a *API) ListConversations(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
-	conversations := []models.Conversation{}
+	type conversationListItem struct {
+		models.Conversation
+		LastMessage *string `json:"last_message"`
+		IsGroup     bool    `json:"is_group"`
+	}
+
+	conversations := []conversationListItem{}
 	if err := a.Store.WithTenantConn(ctx, tenantID, func(conn *pgxpool.Conn) error {
 		rows, err := conn.Query(ctx, `
-			SELECT id, tenant_id, contact_number, contact_name, last_message_at, created_at, profile_picture_url
-			FROM conversations
-			WHERE tenant_id=$1
-			ORDER BY last_message_at DESC NULLS LAST, created_at DESC
-			LIMIT $2 OFFSET $3`, tenantID, limit, offset)
+				SELECT
+					c.id,
+					c.tenant_id,
+					c.contact_number,
+					c.contact_name,
+					c.last_message_at,
+					c.created_at,
+					c.profile_picture_url,
+					lm.content
+				FROM conversations c
+				LEFT JOIN LATERAL (
+					SELECT m.content
+					FROM messages m
+					WHERE m.tenant_id=c.tenant_id AND m.conversation_id=c.id
+					ORDER BY m.timestamp DESC
+					LIMIT 1
+				) lm ON true
+				WHERE c.tenant_id=$1
+				ORDER BY c.last_message_at DESC NULLS LAST, c.created_at DESC
+				LIMIT $2 OFFSET $3`, tenantID, limit, offset)
 		if err != nil {
 			return err
 		}
 		defer rows.Close()
 
 		for rows.Next() {
-			var convo models.Conversation
-			if err := rows.Scan(&convo.ID, &convo.TenantID, &convo.ContactNumber, &convo.ContactName, &convo.LastMessageAt, &convo.CreatedAt, &convo.ProfilePictureURL); err != nil {
+			var convo conversationListItem
+			if err := rows.Scan(
+				&convo.ID,
+				&convo.TenantID,
+				&convo.ContactNumber,
+				&convo.ContactName,
+				&convo.LastMessageAt,
+				&convo.CreatedAt,
+				&convo.ProfilePictureURL,
+				&convo.LastMessage,
+			); err != nil {
 				return err
 			}
+			convo.IsGroup = strings.Contains(convo.ContactNumber, "@g.us") || strings.HasPrefix(convo.ContactNumber, "12036")
 			conversations = append(conversations, convo)
 		}
 		return rows.Err()
