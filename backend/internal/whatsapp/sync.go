@@ -16,6 +16,7 @@ import (
 
 	"message-flow/backend/internal/db"
 	"message-flow/backend/internal/llm"
+	"message-flow/backend/internal/models"
 	"message-flow/backend/internal/realtime"
 )
 
@@ -144,10 +145,14 @@ func (s *Syncer) handleMessage(ctx context.Context, tenantID int64, client *what
 	}
 
 	if s.Hub != nil {
+		msg, _ := s.wsMessage(ctx, tenantID, messageID)
+		convo, _ := s.wsConversationUpdate(ctx, tenantID, conversationID, content)
 		s.Hub.Broadcast(tenantID, map[string]any{
 			"type":            "message.received",
 			"message_id":      messageID,
 			"conversation_id": conversationID,
+			"message":         msg,
+			"conversation":    convo,
 		})
 	}
 }
@@ -230,6 +235,60 @@ func (s *Syncer) UpsertConversation(ctx context.Context, tenantID int64, client 
 		return tx.Commit(ctx)
 	})
 	return id, err
+}
+
+func (s *Syncer) wsMessage(ctx context.Context, tenantID, messageID int64) (*models.Message, error) {
+	var msg models.Message
+	err := s.Store.WithTenantConn(ctx, tenantID, func(conn *pgxpool.Conn) error {
+		return conn.QueryRow(ctx, `
+			SELECT id, tenant_id, conversation_id, sender, content, timestamp, metadata_json, created_at
+			FROM messages
+			WHERE tenant_id=$1 AND id=$2`, tenantID, messageID).Scan(
+			&msg.ID,
+			&msg.TenantID,
+			&msg.ConversationID,
+			&msg.Sender,
+			&msg.Content,
+			&msg.Timestamp,
+			&msg.MetadataJSON,
+			&msg.CreatedAt,
+		)
+	})
+	if err != nil {
+		return nil, err
+	}
+	if msg.Sender == "agent" || msg.Sender == "me" {
+		msg.IsOutbound = true
+	} else if msg.MetadataJSON != nil && *msg.MetadataJSON != "" {
+		var meta map[string]any
+		if err := json.Unmarshal([]byte(*msg.MetadataJSON), &meta); err == nil {
+			if pn, ok := meta["push_name"].(string); ok && strings.TrimSpace(pn) != "" {
+				value := strings.TrimSpace(pn)
+				msg.SenderName = &value
+			}
+		}
+	}
+	return &msg, nil
+}
+
+func (s *Syncer) wsConversationUpdate(ctx context.Context, tenantID, conversationID int64, lastMessage string) (map[string]any, error) {
+	var lastMessageAt *time.Time
+	var unreadCount int64
+	err := s.Store.WithTenantConn(ctx, tenantID, func(conn *pgxpool.Conn) error {
+		return conn.QueryRow(ctx, `
+			SELECT last_message_at, unread_count
+			FROM conversations
+			WHERE tenant_id=$1 AND id=$2`, tenantID, conversationID).Scan(&lastMessageAt, &unreadCount)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{
+		"id":              conversationID,
+		"last_message":    lastMessage,
+		"last_message_at": lastMessageAt,
+		"unread_count":    unreadCount,
+	}, nil
 }
 
 func (s *Syncer) insertMessage(ctx context.Context, tenantID, conversationID int64, info types.MessageInfo, content string, chatJID types.JID, mediaInfo *MediaInfo) (int64, bool, error) {

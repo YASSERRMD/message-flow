@@ -150,9 +150,24 @@ func (a *API) ReplyMessage(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	if a.Hub != nil {
+		var unreadCount int64
+		_ = a.Store.WithTenantConn(ctx, tenantID, func(conn *pgxpool.Conn) error {
+			return conn.QueryRow(ctx, `
+				SELECT unread_count
+				FROM conversations
+				WHERE tenant_id=$1 AND id=$2`, tenantID, req.ConversationID).Scan(&unreadCount)
+		})
 		a.Hub.Broadcast(tenantID, map[string]any{
-			"type":       "message.reply",
-			"message_id": message.ID,
+			"type":            "message.reply",
+			"message_id":      message.ID,
+			"conversation_id": req.ConversationID,
+			"message":         message,
+			"conversation": map[string]any{
+				"id":              req.ConversationID,
+				"last_message":    message.Content,
+				"last_message_at": message.Timestamp,
+				"unread_count":    unreadCount,
+			},
 		})
 	}
 
@@ -221,9 +236,24 @@ func (a *API) ForwardMessage(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	if a.Hub != nil {
+		var unreadCount int64
+		_ = a.Store.WithTenantConn(ctx, tenantID, func(conn *pgxpool.Conn) error {
+			return conn.QueryRow(ctx, `
+				SELECT unread_count
+				FROM conversations
+				WHERE tenant_id=$1 AND id=$2`, tenantID, req.TargetConversationID).Scan(&unreadCount)
+		})
 		a.Hub.Broadcast(tenantID, map[string]any{
-			"type":       "message.forward",
-			"message_id": message.ID,
+			"type":            "message.forward",
+			"message_id":      message.ID,
+			"conversation_id": req.TargetConversationID,
+			"message":         message,
+			"conversation": map[string]any{
+				"id":              req.TargetConversationID,
+				"last_message":    message.Content,
+				"last_message_at": message.Timestamp,
+				"unread_count":    unreadCount,
+			},
 		})
 	}
 
