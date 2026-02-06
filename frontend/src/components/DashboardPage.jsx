@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import useStoredState from "../hooks/useStoredState.js";
 import DailySummaryCard from "./DailySummaryCard";
+import ChatMessage from "./chat/ChatMessage.jsx";
+import Avatar from "./chat/Avatar.jsx";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8081/api/v1";
 const WS_BASE = import.meta.env.VITE_WS_BASE || API_BASE.replace("http", "ws");
@@ -42,7 +44,6 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
   const [summaryData, setSummaryData] = useState(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [dailySummary, setDailySummary] = useState(null);
-  const [avatarErrors, setAvatarErrors] = useState({});
   const [loadingMore, setLoadingMore] = useState(false);
   const [showAIChat, setShowAIChat] = useState(false);
   const [aiQuestion, setAiQuestion] = useState("");
@@ -387,26 +388,6 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
     setSelectedConversation(null);
   };
 
-  const getInitials = (name) => {
-    if (!name) return "?";
-    return name.split(" ").map(w => w[0]).join("").substring(0, 2).toUpperCase();
-  };
-
-  const getAvatarStyle = (name) => {
-    const colors = [
-      { bg: "#f0f9ff", color: "#0369a1" },
-      { bg: "#fef3c7", color: "#a16207" },
-      { bg: "#f5f3ff", color: "#6b21a8" },
-      { bg: "#f0fdf4", color: "#15803d" },
-      { bg: "#fdf2f8", color: "#be185d" },
-      { bg: "#ecfeff", color: "#0e7490" },
-      { bg: "#fff7ed", color: "#c2410c" },
-      { bg: "#eff6ff", color: "#1e40af" }
-    ];
-    const index = (name || "?").charCodeAt(0) % colors.length;
-    return { background: colors[index].bg, color: colors[index].color };
-  };
-
   const formatTime = (dateStr) => {
     if (!dateStr) return "";
     const d = new Date(dateStr);
@@ -415,7 +396,6 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
 
   const selectConversation = (conv) => {
     setSelectedConversation(conv);
-    setAvatarErrors({});
     setShowAIChat(false);
     setAiChatError("");
   };
@@ -437,27 +417,6 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
         .finally(() => setLoadingMore(false));
     }
   }, [loadingMore, selectedConversation, hasMoreMessages, loadMessages, messagesPage]);
-
-  const parseMetadata = (metadataJson) => {
-    if (!metadataJson) return null;
-    try {
-      return JSON.parse(metadataJson);
-    } catch {
-      return null;
-    }
-  };
-
-  const extractMedia = (metadataJson) => {
-    const meta = parseMetadata(metadataJson);
-    const media = meta?.media;
-    if (!media || !media.has_media) return null;
-    return media;
-  };
-
-  const shouldHidePlaceholder = (content) => {
-    if (!content) return true;
-    return /^\[(image|video|audio|document|sticker)\]$/i.test(content.trim());
-  };
 
   // Not connected - show QR panel
   if (authStatus !== "signed-in") {
@@ -512,18 +471,7 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
                   className={`conversation-item ${selectedConversation?.id === conv.id ? "active" : ""}`}
                   onClick={() => selectConversation(conv)}
                 >
-                  <div className="conv-avatar" style={avatarErrors[conv.id] ? getAvatarStyle(name) : {}}>
-                    {!avatarErrors[conv.id] && avatarSrc ? (
-                      <img
-                        src={avatarSrc}
-                        alt={name}
-                        className="avatar-img"
-                        onError={() => setAvatarErrors(prev => ({ ...prev, [conv.id]: true }))}
-                      />
-                    ) : (
-                      getInitials(name)
-                    )}
-                  </div>
+                  <Avatar className="conv-avatar" src={avatarSrc} name={name} />
                   <div className="conv-content">
                     <div className="conv-header">
                       <span className="conv-name">{name}</span>
@@ -546,18 +494,11 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
             <>
               <div className="chat-header">
                 <div className="chat-user-info">
-                  <div className="chat-avatar" style={avatarErrors[selectedConversation.id] ? getAvatarStyle(selectedConversation.contact_name || "") : {}}>
-                    {!avatarErrors[selectedConversation.id] && conversationAvatarSrc(selectedConversation.id) ? (
-                      <img
-                        src={conversationAvatarSrc(selectedConversation.id)}
-                        alt="Profile"
-                        className="avatar-img"
-                        onError={() => setAvatarErrors(prev => ({ ...prev, [selectedConversation.id]: true }))}
-                      />
-                    ) : (
-                      getInitials(selectedConversation.contact_name || selectedConversation.contact_number)
-                    )}
-                  </div>
+                  <Avatar
+                    className="chat-avatar"
+                    src={conversationAvatarSrc(selectedConversation.id)}
+                    name={selectedConversation.contact_name || selectedConversation.contact_number}
+                  />
                   <div className="chat-details">
                     <h3>{selectedConversation.contact_name || (selectedConversation.contact_number || "").split("@")[0]}</h3>
                     <p>{selectedConversation.contact_number}</p>
@@ -590,71 +531,14 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
                         (selectedConversation?.whatsapp_jid || "").includes("@g.us") ||
                         (selectedConversation?.contact_number || "").includes("@g.us") ||
                         (selectedConversation?.contact_number || "").startsWith("12036");
-                      const senderName = msg.sender_name || (msg.sender || "").split("@")[0] || "Unknown";
-                      const media = extractMedia(msg.metadata_json);
-                      const hideText = shouldHidePlaceholder(msg.content);
 
                       return (
-                        <div key={msg.id} className={`message ${msg.is_outbound ? "outbound" : ""}`}>
-                          <div className="message-bubble">
-                          {/* Show sender name for inbound group messages */}
-                          {!msg.is_outbound && isGroup && (
-                            <div className="message-sender" style={{ color: getAvatarStyle(senderName).color, fontSize: '12px', fontWeight: 600, marginBottom: '4px' }}>
-                              {senderName}
-                            </div>
-                          )}
-                          {media?.has_media && (
-                            <div className={`wa-media wa-media-${media.media_type}`}>
-                              {media.media_type === "image" && (
-                                <div className="media-placeholder">
-                                  <span className="media-icon">📷</span>
-                                  <span className="media-label">Image</span>
-                                </div>
-                              )}
-                              {media.media_type === "video" && (
-                                <div className="media-placeholder">
-                                  <span className="media-icon">🎬</span>
-                                  <span className="media-label">
-                                    Video{media.duration_seconds ? ` (${Math.floor(media.duration_seconds / 60)}:${String(media.duration_seconds % 60).padStart(2, "0")})` : ""}
-                                  </span>
-                                </div>
-                              )}
-                              {media.media_type === "audio" && (
-                                <div className="media-placeholder">
-                                  <span className="media-icon">🎵</span>
-                                  <span className="media-label">
-                                    Audio{media.duration_seconds ? ` (${Math.floor(media.duration_seconds / 60)}:${String(media.duration_seconds % 60).padStart(2, "0")})` : ""}
-                                  </span>
-                                </div>
-                              )}
-                              {media.media_type === "document" && (
-                                <div className="media-placeholder">
-                                  <span className="media-icon">📄</span>
-                                  <span className="media-label">{media.file_name || "Document"}</span>
-                                </div>
-                              )}
-                              {media.media_type === "sticker" && (
-                                <div className="media-placeholder">
-                                  <span className="media-icon">🎭</span>
-                                  <span className="media-label">Sticker</span>
-                                </div>
-                              )}
-                            </div>
-                          )}
-
-                          {!hideText && (
-                            <div className="message-text">{msg.content}</div>
-                          )}
-                          <div className="message-meta">
-                            <span className="message-time">{formatTime(msg.timestamp || msg.created_at)}</span>
-                            {msg.is_outbound && (
-                              <span className="message-status">
-                                <i className="fas fa-check-double" style={{ color: "#53bdeb" }}></i>
-                              </span>
-                            )}
-                          </div>
-                          </div>
-                        </div>
+                        <ChatMessage
+                          key={msg.id}
+                          message={msg}
+                          isGroup={isGroup}
+                          formatTime={formatTime}
+                        />
                       );
                     })}
                   </div>
