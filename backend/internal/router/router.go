@@ -107,6 +107,14 @@ func (rt *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	case strings.HasPrefix(path, "/api/v1/conversations/"):
 		segments := strings.Split(strings.TrimPrefix(path, "/api/v1/conversations/"), "/")
+		if len(segments) == 2 && segments[1] == "avatar" {
+			if r.Method == http.MethodGet {
+				if id, ok := handlers.ParseID(segments[0]); ok {
+					rt.api.GetConversationAvatar(w, r, id)
+					return
+				}
+			}
+		}
 		if len(segments) == 2 && segments[1] == "messages" {
 			if r.Method == http.MethodGet {
 				if id, ok := handlers.ParseID(segments[0]); ok {

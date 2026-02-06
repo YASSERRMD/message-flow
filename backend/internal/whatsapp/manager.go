@@ -174,6 +174,18 @@ func (m *Manager) GetSession(sessionID string) (*Session, bool) {
 	return &copy, true
 }
 
+func (m *Manager) ClientForTenant(tenantID int64) (*whatsmeow.Client, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	for _, session := range m.sessions {
+		if session.TenantID == tenantID && session.Status == "connected" && session.Client != nil {
+			return session.Client, nil
+		}
+	}
+	return nil, errors.New("no connected whatsapp session found for tenant")
+}
+
 // SendMessage sends a text message to a specific JID using the tenant's active session
 func (m *Manager) SendMessage(ctx context.Context, tenantID int64, recipientJID string, content string) error {
 	m.mu.RLock()
