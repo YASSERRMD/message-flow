@@ -132,6 +132,9 @@ func (a *API) ReplyMessage(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to save message")
 		return
 	}
+	if message.Sender == "agent" || message.Sender == "me" {
+		message.IsOutbound = true
+	}
 
 	_ = a.Store.WithTenantConn(ctx, tenantID, func(conn *pgxpool.Conn) error {
 		_, err := conn.Exec(ctx, `
@@ -198,6 +201,9 @@ func (a *API) ForwardMessage(w http.ResponseWriter, r *http.Request) {
 	}); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to forward message")
 		return
+	}
+	if message.Sender == "agent" || message.Sender == "me" {
+		message.IsOutbound = true
 	}
 
 	_ = a.Store.WithTenantConn(ctx, tenantID, func(conn *pgxpool.Conn) error {

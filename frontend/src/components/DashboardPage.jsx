@@ -284,20 +284,39 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
 
   const handleSendMessage = async () => {
     if (!selectedConversation || !replyText.trim()) return;
+    const conversationId = selectedConversation.id;
+    const content = replyText.trim();
     try {
       const res = await fetch(`${API_BASE}/messages/reply`, {
         method: "POST",
         headers: authHeaders,
         body: JSON.stringify({
-          conversation_id: selectedConversation.id,
-          content: replyText
+          conversation_id: conversationId,
+          content
         })
       });
 
       if (res.ok) {
+        const msg = await res.json().catch(() => null);
         setReplyText("");
-        loadMessages(selectedConversation.id, 1);
-        loadDashboard(); // Refresh sorting
+        if (msg && msg.conversation_id === conversationId) {
+          shouldStickToBottomRef.current = true;
+          setMessages((prev) => {
+            if (prev.some((m) => m.id === msg.id)) return prev;
+            return [...prev, msg];
+          });
+          setConversations((prev) =>
+            prev.map((c) =>
+              c.id === conversationId
+                ? {
+                  ...c,
+                  last_message: msg.content || c.last_message,
+                  last_message_at: msg.timestamp || c.last_message_at
+                }
+                : c
+            )
+          );
+        }
       } else {
         const err = await res.json().catch(() => ({}));
         alert(`Failed to send: ${err.error || `HTTP ${res.status}`}`);
