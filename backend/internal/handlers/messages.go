@@ -47,9 +47,12 @@ func (a *API) ReplyMessage(w http.ResponseWriter, r *http.Request) {
 	var message models.Message
 
 	// Get recipient number from conversation
-	var contactNumber string
+	var recipient string
 	if err := a.Store.WithTenantConn(ctx, tenantID, func(conn *pgxpool.Conn) error {
-		return conn.QueryRow(ctx, "SELECT contact_number FROM conversations WHERE id=$1 AND tenant_id=$2", req.ConversationID, tenantID).Scan(&contactNumber)
+		return conn.QueryRow(ctx, `
+			SELECT COALESCE(NULLIF(whatsapp_jid,''), contact_number)
+			FROM conversations
+			WHERE id=$1 AND tenant_id=$2`, req.ConversationID, tenantID).Scan(&recipient)
 	}); err != nil {
 		writeError(w, http.StatusNotFound, "conversation not found")
 		return
@@ -57,7 +60,7 @@ func (a *API) ReplyMessage(w http.ResponseWriter, r *http.Request) {
 
 	// Send via WhatsApp
 	if a.WhatsApp != nil {
-		if err := a.WhatsApp.SendMessage(ctx, tenantID, contactNumber, req.Content); err != nil {
+		if err := a.WhatsApp.SendMessage(ctx, tenantID, recipient, req.Content); err != nil {
 			// Log error but continue to save (or should we fail? usually better to fail if send fails)
 			// But for now, let's return error so user knows
 			writeError(w, http.StatusInternalServerError, "failed to send whatsapp message: "+err.Error())
