@@ -42,6 +42,8 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
   const [summaryData, setSummaryData] = useState(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [dailySummary, setDailySummary] = useState(null);
+  const [avatarErrors, setAvatarErrors] = useState({});
+  const [loadingMore, setLoadingMore] = useState(false);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -129,7 +131,8 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
       if (page === 1) {
         setMessages(newMessages);
       } else {
-        setMessages(prev => [...prev, ...newMessages]);
+        // Page > 1 is older messages. Prepend so overall order stays chronological.
+        setMessages(prev => [...newMessages, ...prev]);
       }
       setMessagesPage(page);
       setHasMoreMessages(newMessages.length === 50);
@@ -148,6 +151,7 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
     let list = conversations;
     if (filter === "groups") {
       list = list.filter(c =>
+        (c.whatsapp_jid || "").includes("@g.us") ||
         (c.contact_number || "").includes("@g.us") ||
         (c.contact_number || "").startsWith("12036")
       );
@@ -156,7 +160,8 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
       const term = searchTerm.toLowerCase();
       list = list.filter(c =>
         (c.contact_name || "").toLowerCase().includes(term) ||
-        (c.contact_number || "").toLowerCase().includes(term)
+        (c.contact_number || "").toLowerCase().includes(term) ||
+        (c.whatsapp_jid || "").toLowerCase().includes(term)
       );
     }
     return list;
@@ -304,7 +309,22 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
 
   const selectConversation = (conv) => {
     setSelectedConversation(conv);
+    setAvatarErrors({});
   };
+
+  const conversationAvatarSrc = useCallback((conversationId) => {
+    if (!conversationId || !token) return "";
+    return `${API_BASE}/conversations/${conversationId}/avatar?token=${encodeURIComponent(token)}`;
+  }, [token]);
+
+  const handleMessagesScroll = useCallback((e) => {
+    if (loadingMore || !selectedConversation || !hasMoreMessages) return;
+    if (e.currentTarget.scrollTop <= 60) {
+      setLoadingMore(true);
+      Promise.resolve(loadMessages(selectedConversation.id, messagesPage + 1))
+        .finally(() => setLoadingMore(false));
+    }
+  }, [loadingMore, selectedConversation, hasMoreMessages, loadMessages, messagesPage]);
 
   // Not connected - show QR panel
   if (authStatus !== "signed-in") {
@@ -352,15 +372,21 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
             {filteredConversations.map((conv) => {
               const name = conv.contact_name || (conv.contact_number || "").split("@")[0] || "Unknown";
               const isGroup = conv.is_group ?? ((conv.contact_number || "").includes("@g.us") || (conv.contact_number || "").startsWith("12036"));
+              const avatarSrc = conversationAvatarSrc(conv.id);
               return (
                 <div
                   key={conv.id}
                   className={`conversation-item ${selectedConversation?.id === conv.id ? "active" : ""}`}
                   onClick={() => selectConversation(conv)}
                 >
-                  <div className="conv-avatar" style={!conv.profile_picture_url ? getAvatarStyle(name) : {}}>
-                    {conv.profile_picture_url ? (
-                      <img src={conv.profile_picture_url} alt={name} className="avatar-img" />
+                  <div className="conv-avatar" style={avatarErrors[conv.id] ? getAvatarStyle(name) : {}}>
+                    {!avatarErrors[conv.id] && avatarSrc ? (
+                      <img
+                        src={avatarSrc}
+                        alt={name}
+                        className="avatar-img"
+                        onError={() => setAvatarErrors(prev => ({ ...prev, [conv.id]: true }))}
+                      />
                     ) : (
                       getInitials(name)
                     )}
@@ -387,11 +413,16 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
             <>
               <div className="chat-header">
                 <div className="chat-user-info">
-                  <div className="chat-avatar" style={!selectedConversation.profile_picture_url ? getAvatarStyle(selectedConversation.contact_name || "") : {}}>
-                    {selectedConversation.profile_picture_url ? (
-                      <img src={selectedConversation.profile_picture_url} alt="Profile" className="avatar-img" />
+                  <div className="chat-avatar" style={avatarErrors[selectedConversation.id] ? getAvatarStyle(selectedConversation.contact_name || "") : {}}>
+                    {!avatarErrors[selectedConversation.id] && conversationAvatarSrc(selectedConversation.id) ? (
+                      <img
+                        src={conversationAvatarSrc(selectedConversation.id)}
+                        alt="Profile"
+                        className="avatar-img"
+                        onError={() => setAvatarErrors(prev => ({ ...prev, [selectedConversation.id]: true }))}
+                      />
                     ) : (
-                      getInitials(selectedConversation.contact_name || selectedConversation.whatsapp_jid)
+                      getInitials(selectedConversation.contact_name || selectedConversation.contact_number)
                     )}
                   </div>
                   <div className="chat-details">
@@ -414,11 +445,15 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
                 </div>
               </div>
 
-                <div className="messages-container">
+                <div className="messages-container" onScroll={handleMessagesScroll}>
                   <div className="message-group">
                     <div className="message-date">Today</div>
+                    {loadingMore && hasMoreMessages && (
+                      <div className="message-date">Loading older messages...</div>
+                    )}
                     {messages.map((msg) => {
                       const isGroup =
+                        (selectedConversation?.whatsapp_jid || "").includes("@g.us") ||
                         (selectedConversation?.contact_number || "").includes("@g.us") ||
                         (selectedConversation?.contact_number || "").startsWith("12036");
                       const senderName = msg.sender_name || (msg.sender || "").split("@")[0] || "Unknown";

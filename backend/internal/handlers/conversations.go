@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"strings"
 	"time"
@@ -32,6 +33,7 @@ func (a *API) ListConversations(w http.ResponseWriter, r *http.Request) {
 					c.id,
 					c.tenant_id,
 					c.contact_number,
+					c.whatsapp_jid,
 					c.contact_name,
 					c.last_message_at,
 					c.created_at,
@@ -59,6 +61,7 @@ func (a *API) ListConversations(w http.ResponseWriter, r *http.Request) {
 				&convo.ID,
 				&convo.TenantID,
 				&convo.ContactNumber,
+				&convo.WhatsAppJID,
 				&convo.ContactName,
 				&convo.LastMessageAt,
 				&convo.CreatedAt,
@@ -116,14 +119,24 @@ func (a *API) GetConversationMessages(w http.ResponseWriter, r *http.Request, co
 			if msg.Sender == "agent" || msg.Sender == "me" {
 				msg.IsOutbound = true
 			} else {
-				// For inbound, try to format the sender as a name
-				// msg.Sender is likely a JID like 123456789@s.whatsapp.net
-				// We can just take the part before @
-				name := msg.Sender
-				if len(name) > 12 {
-					name = name[:12] + "..."
+				// Prefer push_name from metadata if present.
+				if msg.MetadataJSON != nil && *msg.MetadataJSON != "" {
+					var meta map[string]any
+					if err := json.Unmarshal([]byte(*msg.MetadataJSON), &meta); err == nil {
+						if pn, ok := meta["push_name"].(string); ok && strings.TrimSpace(pn) != "" {
+							value := strings.TrimSpace(pn)
+							msg.SenderName = &value
+						}
+					}
 				}
-				msg.SenderName = &name
+				if msg.SenderName == nil {
+					// Fallback: sender JID like 123456789@s.whatsapp.net -> 123456789...
+					name := msg.Sender
+					if len(name) > 12 {
+						name = name[:12] + "..."
+					}
+					msg.SenderName = &name
+				}
 			}
 			messagesDesc = append(messagesDesc, msg)
 		}

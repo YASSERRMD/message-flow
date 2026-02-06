@@ -15,6 +15,7 @@ type Conversation struct {
 	ID                int64      `json:"id"`
 	TenantID          int64      `json:"tenant_id"`
 	ContactNumber     string     `json:"contact_number"`
+	WhatsAppJID       *string    `json:"whatsapp_jid"`
 	ContactName       *string    `json:"contact_name"`
 	LastMessageAt     *time.Time `json:"last_message_at"`
 	CreatedAt         time.Time  `json:"created_at"`
