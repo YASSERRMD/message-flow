@@ -9,6 +9,7 @@ type Provider interface {
 	Name() string
 	Analyze(ctx context.Context, message string) (*AnalysisResult, error)
 	Summarize(ctx context.Context, messages []string) (*SummaryResult, error)
+	Chat(ctx context.Context, prompt string) (string, error)
 	ExtractActions(ctx context.Context, text string) ([]string, error)
 	HealthCheck(ctx context.Context) (*HealthCheckResult, error)
 	GetConfig() *ProviderConfig

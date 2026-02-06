@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"time"
 
 	anthropic "github.com/anthropics/anthropic-sdk-go"
@@ -107,6 +108,37 @@ func (c *ClaudeProvider) Summarize(ctx context.Context, messages []string) (*con
 		return nil, err
 	}
 	return &parsed, nil
+}
+
+func (c *ClaudeProvider) Chat(ctx context.Context, prompt string) (string, error) {
+	var response *anthropic.Message
+	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	defer cancel()
+
+	err := c.retrier.Do(ctx, func() error {
+		start := time.Now()
+		result, err := c.client.Messages.New(ctx, anthropic.MessageNewParams{
+			Model:       anthropic.Model(c.config.ModelName),
+			MaxTokens:   int64(c.config.MaxTokens),
+			Temperature: anthropic.Float(c.config.Temperature),
+			Messages: []anthropic.MessageParam{
+				anthropic.NewUserMessage(anthropic.NewTextBlock(prompt)),
+			},
+		})
+		if err != nil {
+			return err
+		}
+		response = result
+		c.captureUsage("chat", start, result.Usage)
+		return nil
+	})
+	if err != nil {
+		return "", err
+	}
+	if response == nil || len(response.Content) == 0 {
+		return "", errors.New("empty response")
+	}
+	return strings.TrimSpace(response.Content[0].Text), nil
 }
 
 func (c *ClaudeProvider) ExtractActions(ctx context.Context, text string) ([]string, error) {

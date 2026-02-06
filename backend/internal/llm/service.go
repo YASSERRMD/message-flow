@@ -67,6 +67,18 @@ func (s *Service) ExtractActions(ctx context.Context, tenantID, providerID int64
 	return result, err
 }
 
+func (s *Service) Chat(ctx context.Context, tenantID, providerID int64, prompt string) (string, error) {
+	provider, err := s.Router.GetProvider(ctx, tenantID, providerID)
+	if err != nil {
+		return "", err
+	}
+	start := time.Now()
+	result, err := provider.Chat(ctx, prompt)
+	record := usageFromProvider(provider, start, err, "chat")
+	_ = s.Store.InsertUsage(ctx, tenantID, providerID, nil, record, provider.GetConfig().CostPer1KInput, provider.GetConfig().CostPer1KOutput)
+	return result, err
+}
+
 func usageFromProvider(provider Provider, start time.Time, err error, feature string) UsageRecord {
 	if aware, ok := provider.(usageAware); ok {
 		record := aware.lastUsageRecord()

@@ -128,6 +128,40 @@ func (o *OpenAIProvider) Summarize(ctx context.Context, messages []string) (*con
 	return &parsed, nil
 }
 
+func (o *OpenAIProvider) Chat(ctx context.Context, prompt string) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	start := time.Now()
+	var resp *openai.ChatCompletion
+	err := o.retrier.Do(ctx, func() error {
+		result, err := o.client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
+			Model:       shared.ChatModel(o.effectiveModel()),
+			Temperature: openai.Float(o.config.Temperature),
+			MaxTokens:   openai.Int(int64(o.config.MaxTokens)),
+			Messages: []openai.ChatCompletionMessageParamUnion{
+				userMessage(prompt),
+			},
+		})
+		if err != nil {
+			if isRateLimitError(err) {
+				return err
+			}
+			return err
+		}
+		resp = result
+		return nil
+	})
+	if err != nil {
+		return "", err
+	}
+	o.captureUsage("chat", start, resp.Usage)
+	if len(resp.Choices) == 0 {
+		return "", errors.New("empty response")
+	}
+	return strings.TrimSpace(resp.Choices[0].Message.Content), nil
+}
+
 func (o *OpenAIProvider) ExtractActions(ctx context.Context, text string) ([]string, error) {
 	prompt := "Extract action items as JSON object with actions array of strings\n\nText: " + text
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
