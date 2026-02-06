@@ -44,6 +44,11 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
   const [dailySummary, setDailySummary] = useState(null);
   const [avatarErrors, setAvatarErrors] = useState({});
   const [loadingMore, setLoadingMore] = useState(false);
+  const [showAIChat, setShowAIChat] = useState(false);
+  const [aiQuestion, setAiQuestion] = useState("");
+  const [aiChatLoading, setAiChatLoading] = useState(false);
+  const [aiChatError, setAiChatError] = useState("");
+  const [aiTurnsByConversation, setAiTurnsByConversation] = useState({});
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -269,6 +274,49 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
     }
   };
 
+  const handleAIChat = async (event) => {
+    event?.preventDefault?.();
+    if (!selectedConversation) return;
+
+    const question = aiQuestion.trim();
+    if (!question || aiChatLoading) return;
+
+    setAiQuestion("");
+    setAiChatError("");
+    setAiChatLoading(true);
+
+    const conversationId = selectedConversation.id;
+    setAiTurnsByConversation(prev => ({
+      ...prev,
+      [conversationId]: [...(prev[conversationId] || []), { role: "user", content: question }]
+    }));
+
+    try {
+      const res = await fetch(`${API_BASE}/conversations/${conversationId}/chat`, {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({ question, limit: 200 })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || `HTTP ${res.status}`);
+      }
+      const answer = (data?.answer || "").trim() || "No answer returned.";
+      setAiTurnsByConversation(prev => ({
+        ...prev,
+        [conversationId]: [...(prev[conversationId] || []), { role: "assistant", content: answer }]
+      }));
+    } catch (err) {
+      setAiChatError(err?.message || "Failed to chat with AI");
+      setAiTurnsByConversation(prev => ({
+        ...prev,
+        [conversationId]: [...(prev[conversationId] || []), { role: "assistant", content: "AI chat failed. Please try again." }]
+      }));
+    } finally {
+      setAiChatLoading(false);
+    }
+  };
+
   const handleLogout = async () => {
     try {
       await fetch(`${API_BASE}/auth/logout`, { method: "POST", headers: authHeaders });
@@ -441,6 +489,7 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
                     if (btn) btn.innerText = 'Sync Contacts';
                   }} id="sync-btn"><i className="fas fa-sync"></i> Sync Contacts</button>
                   {/* <button className="action-btn"><i className="fas fa-search"></i> Search</button> */}
+                  <button className="action-btn" onClick={() => { setAiChatError(""); setShowAIChat(true); }}><i className="fas fa-robot"></i> Ask AI</button>
                   <button className="action-btn primary" onClick={handleSummarize}><i className="fas fa-sparkles"></i> Summarize</button>
                 </div>
               </div>
@@ -645,6 +694,54 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
               ) : (
                 <p>No summary data</p>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* AI Chat Modal */}
+      {showAIChat && selectedConversation && (
+        <div className="summary-modal-overlay" onClick={() => setShowAIChat(false)}>
+          <div className="summary-modal ai-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="summary-header">
+              <h3>AI Chat</h3>
+              <button className="close-btn" onClick={() => setShowAIChat(false)}>×</button>
+            </div>
+            <div className="summary-content ai-chat-content">
+              {aiChatError && (
+                <p className="error" style={{ marginBottom: "12px" }}>{aiChatError}</p>
+              )}
+              <div className="ai-chat-log">
+                {(aiTurnsByConversation[selectedConversation.id] || []).length === 0 ? (
+                  <p style={{ color: "#6b7280", fontSize: "14px" }}>
+                    Ask a question about this chat history. Example: "What did we decide about the meeting?"
+                  </p>
+                ) : (
+                  (aiTurnsByConversation[selectedConversation.id] || []).map((turn, idx) => (
+                    <div key={idx} className={`ai-chat-turn ${turn.role}`}>
+                      <div className="ai-chat-bubble">{turn.content}</div>
+                    </div>
+                  ))
+                )}
+                {aiChatLoading && (
+                  <div className="ai-chat-turn assistant">
+                    <div className="ai-chat-bubble">Thinking...</div>
+                  </div>
+                )}
+              </div>
+
+              <form className="ai-chat-form" onSubmit={handleAIChat}>
+                <input
+                  type="text"
+                  className="form-input ai-chat-input"
+                  placeholder="Ask AI about this conversation..."
+                  value={aiQuestion}
+                  onChange={(e) => setAiQuestion(e.target.value)}
+                />
+                <button className="action-btn primary ai-chat-send" type="submit" disabled={aiChatLoading || !aiQuestion.trim()}>
+                  Send
+                </button>
+              </form>
             </div>
           </div>
         </div>
