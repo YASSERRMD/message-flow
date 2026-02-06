@@ -153,15 +153,18 @@ func (s *Syncer) UpsertConversation(ctx context.Context, tenantID int64, client 
 		}
 	}
 
-	// Try to get better name from store if missing
-	if contactName == "" || contactName == contactNumber {
-		if chatJID.Server == "g.us" {
-			if groupInfo, err := client.GetGroupInfo(ctx, chatJID); err == nil && groupInfo != nil {
-				if groupInfo.Name != "" {
-					contactName = groupInfo.Name
-				}
-			}
-		} else {
+	whatsappJID := chatJID.String()
+
+	// Groups: always prefer the group subject, never a sender push name.
+	if chatJID.Server == "g.us" {
+		if groupInfo, err := client.GetGroupInfo(ctx, chatJID); err == nil && groupInfo != nil && groupInfo.Name != "" {
+			contactName = groupInfo.Name
+		} else if contactName == "" {
+			contactName = contactNumber
+		}
+	} else {
+		// Individuals: try to get better name from store if missing.
+		if contactName == "" || contactName == contactNumber {
 			if info, err := client.Store.Contacts.GetContact(ctx, chatJID); err == nil && info.Found {
 				if info.FullName != "" {
 					contactName = info.FullName
@@ -197,15 +200,16 @@ func (s *Syncer) UpsertConversation(ctx context.Context, tenantID int64, client 
 		// which we added in migration 009.
 		var insertedID int64
 		err = tx.QueryRow(ctx, `
-			INSERT INTO conversations (tenant_id, contact_number, contact_name, last_message_at, profile_picture_url, created_at)
-			VALUES ($1, $2, $3, $4, $5, $6)
+			INSERT INTO conversations (tenant_id, contact_number, whatsapp_jid, contact_name, last_message_at, profile_picture_url, created_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7)
 			ON CONFLICT (tenant_id, contact_number) 
 			DO UPDATE SET 
 				last_message_at = GREATEST(conversations.last_message_at, EXCLUDED.last_message_at),
+				whatsapp_jid = COALESCE(NULLIF(EXCLUDED.whatsapp_jid, ''), conversations.whatsapp_jid),
 				contact_name = COALESCE(NULLIF(EXCLUDED.contact_name, ''), conversations.contact_name),
 				profile_picture_url = COALESCE(NULLIF(EXCLUDED.profile_picture_url, ''), conversations.profile_picture_url)
 			RETURNING id`,
-			tenantID, contactNumber, contactName, lastMessageAt, profilePicURL, time.Now().UTC()).Scan(&insertedID)
+			tenantID, contactNumber, whatsappJID, contactName, lastMessageAt, profilePicURL, time.Now().UTC()).Scan(&insertedID)
 
 		if err != nil {
 			return err
@@ -244,6 +248,7 @@ func (s *Syncer) insertMessage(ctx context.Context, tenantID, conversationID int
 			"whatsapp_id": info.ID,
 			"sender":      sender,
 			"chat":        chatJID.String(),
+			"push_name":   info.PushName,
 		}
 		// Include media info if present
 		if mediaInfo != nil {
