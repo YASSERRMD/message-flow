@@ -136,14 +136,6 @@ func (rt *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			rt.api.ReplyMessage(w, r)
 			return
 		}
-	case strings.HasPrefix(path, "/api/v1/messages/"):
-		idPart := strings.TrimPrefix(path, "/api/v1/messages/")
-		if id, ok := handlers.ParseID(idPart); ok {
-			if r.Method == http.MethodGet {
-				rt.api.GetMessage(w, r, id)
-				return
-			}
-		}
 	case path == "/api/v1/messages/forward":
 		if r.Method == http.MethodPost {
 			rt.api.ForwardMessage(w, r)
@@ -158,6 +150,15 @@ func (rt *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodPost {
 			rt.api.BatchAnalyze(w, r)
 			return
+		}
+	case strings.HasPrefix(path, "/api/v1/messages/"):
+		// Only handle the `/messages/:id` shape. Keep named subroutes like `/messages/forward`.
+		idPart := strings.TrimPrefix(path, "/api/v1/messages/")
+		if id, ok := handlers.ParseID(idPart); ok {
+			if r.Method == http.MethodGet {
+				rt.api.GetMessage(w, r, id)
+				return
+			}
 		}
 	case path == "/api/v1/important-messages":
 		if r.Method == http.MethodGet {
