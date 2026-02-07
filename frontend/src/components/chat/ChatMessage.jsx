@@ -5,11 +5,12 @@ export default function ChatMessage({ message, isGroup, formatTime }) {
   const media = extractMedia(message.metadata_json);
   const hideText = shouldHidePlaceholderText(message.content);
   const senderName = message.sender_name || (message.sender || "").split("@")[0] || "Unknown";
+  const isSenderUnknown = senderName === "Unknown" || senderName === "" || senderName === "?";
 
   return (
     <div className={`message ${message.is_outbound ? "outbound" : ""}`}>
       <div className="message-bubble">
-        {!message.is_outbound && isGroup && (
+        {!message.is_outbound && isGroup && !isSenderUnknown && (
           <div
             className="message-sender"
             style={{
@@ -84,4 +85,3 @@ export default function ChatMessage({ message, isGroup, formatTime }) {
     </div>
   );
 }
-
