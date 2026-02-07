@@ -39,6 +39,31 @@ func (s *Syncer) Attach(tenantID int64, client *whatsmeow.Client) {
 	client.AddEventHandler(func(evt any) {
 		ctx := context.Background()
 		switch event := evt.(type) {
+		case *events.LoggedOut:
+			log.Printf("[Syncer] Received *events.LoggedOut for tenant %d (on_connect=%v reason=%v)", tenantID, event.OnConnect, event.Reason)
+			// Ensure any connected dashboard sessions are logged out too.
+			if s.Hub != nil {
+				s.Hub.Broadcast(tenantID, map[string]any{
+					"type":   "auth.logout",
+					"reason": "whatsapp_logged_out",
+				})
+			}
+			// Best-effort disconnect to stop further activity.
+			if client != nil {
+				client.Disconnect()
+			}
+		case events.LoggedOut:
+			ev := event
+			log.Printf("[Syncer] Received events.LoggedOut for tenant %d (on_connect=%v reason=%v)", tenantID, ev.OnConnect, ev.Reason)
+			if s.Hub != nil {
+				s.Hub.Broadcast(tenantID, map[string]any{
+					"type":   "auth.logout",
+					"reason": "whatsapp_logged_out",
+				})
+			}
+			if client != nil {
+				client.Disconnect()
+			}
 		case *events.Message:
 			log.Printf("[Syncer] Received *events.Message from %s", event.Info.Chat.String())
 			contactName := event.Info.PushName

@@ -141,6 +141,16 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
     const onMessage = async (event) => {
       try {
         const data = JSON.parse(event.data);
+        if (data?.type === "auth.logout") {
+          setToken("");
+          setCsrf("");
+          setAuthStatus("signed-out");
+          setConversations([]);
+          setMessages([]);
+          setSelectedConversation(null);
+          return;
+        }
+
         if (data?.type !== "message.received" && data?.type !== "message.reply" && data?.type !== "message.forward") return;
 
         const msg = data?.message || await fetchMessage(data.message_id);
