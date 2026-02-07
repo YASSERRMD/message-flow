@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
+import { getApiBase } from "../../lib/runtimeConfig.js";
 
-const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8080/api/v1";
+const API_BASE = getApiBase();
 
 export default function AnalyticsPage({ token, csrf }) {
   const [activity, setActivity] = useState([]);

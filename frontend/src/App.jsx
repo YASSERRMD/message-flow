@@ -5,8 +5,9 @@ import ErrorBoundary from "./components/llm/ErrorBoundary.jsx";
 import CollaborationPage from "./components/CollaborationPage.jsx";
 import TopHeader from "./components/TopHeader.jsx";
 import useStoredState from "./hooks/useStoredState.js";
+import { getApiBase } from "./lib/runtimeConfig.js";
 
-const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8080/api/v1";
+const API_BASE = getApiBase();
 
 export default function App() {
   const [view, setView] = useState("operations");
