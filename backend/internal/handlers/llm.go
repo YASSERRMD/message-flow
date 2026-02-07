@@ -504,13 +504,14 @@ func (a *API) SummarizeConversation(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	} else {
-		// Default provider first (if any), then try the rest.
+		// Default provider first, then try explicit fallback providers only.
+		// Don't iterate over every active provider: seed/demo rows often have dummy keys and create confusing failures.
 		if provider, err := a.LLM.Router.GetDefaultProvider(ctx, tenantID); err == nil && provider != nil {
 			_ = tryProvider(provider.GetConfig().ID)
 		}
-		ids, err := a.LLM.Store.ListProviderIDs(ctx, tenantID)
+		ids, err := a.LLM.Store.ListFallbackProviderIDs(ctx, tenantID)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, "failed to list providers: "+err.Error())
+			writeError(w, http.StatusInternalServerError, "failed to list fallback providers: "+err.Error())
 			return
 		}
 		for _, id := range ids {

@@ -170,6 +170,30 @@ func (s *Store) ListProviderIDs(ctx context.Context, tenantID int64) ([]int64, e
 	return ids, err
 }
 
+func (s *Store) ListFallbackProviderIDs(ctx context.Context, tenantID int64) ([]int64, error) {
+	var ids []int64
+	err := s.DB.WithTenantConn(ctx, tenantID, func(conn *pgxpool.Conn) error {
+		rows, err := conn.Query(ctx, `
+			SELECT id
+			FROM llm_providers
+			WHERE tenant_id=$1 AND is_active=TRUE AND is_fallback=TRUE
+			ORDER BY id ASC`, tenantID)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var id int64
+			if err := rows.Scan(&id); err != nil {
+				return err
+			}
+			ids = append(ids, id)
+		}
+		return rows.Err()
+	})
+	return ids, err
+}
+
 func (s *Store) SetProviderHealth(ctx context.Context, tenantID, providerID int64, status string) error {
 	return s.DB.WithTenantConn(ctx, tenantID, func(conn *pgxpool.Conn) error {
 		_, err := conn.Exec(ctx, `
