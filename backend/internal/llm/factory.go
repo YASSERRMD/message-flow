@@ -41,6 +41,9 @@ func (f *Factory) CreateProvider(config *ProviderConfig) Provider {
 		// Use OpenAI provider with Gemini-compatible base URL
 		// User should configure base_url to point to Gemini API or use an OpenAI-compatible gateway
 		provider = providers.NewOpenAIProvider(config)
+	case "groq":
+		// Groq has an OpenAI-compatible API.
+		provider = providers.NewOpenAIProvider(config)
 	default:
 		return nil
 	}
