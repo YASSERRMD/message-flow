@@ -85,6 +85,25 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
     }
   }, []);
 
+  const authHeaders = useMemo(() => ({
+    "Content-Type": "application/json",
+    Authorization: token ? `Bearer ${token}` : "",
+    "X-CSRF-Token": csrf || ""
+  }), [token, csrf]);
+
+  const markConversationRead = useCallback(async (conversationId) => {
+    if (!conversationId) return;
+    try {
+      await fetch(`${API_BASE}/conversations/${conversationId}/read`, {
+        method: "POST",
+        headers: authHeaders
+      });
+    } catch { }
+    setConversations((prev) =>
+      prev.map((c) => (c.id === conversationId ? { ...c, unread_count: 0 } : c))
+    );
+  }, [authHeaders]);
+
   useEffect(() => {
     if (!token || authStatus !== "signed-in") return;
     const wsUrl = `${WS_BASE}/ws?token=${token}`;
@@ -150,12 +169,6 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
     return () => ws.close();
   }, [token, authStatus, authHeaders, selectedConversation, markConversationRead, sortConversations]);
 
-  const authHeaders = useMemo(() => ({
-    "Content-Type": "application/json",
-    Authorization: token ? `Bearer ${token}` : "",
-    "X-CSRF-Token": csrf || ""
-  }), [token, csrf]);
-
   const loadDashboard = useCallback(async () => {
     if (!token) return;
     try {
@@ -207,19 +220,6 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
       setMessagesPage(page);
       setHasMoreMessages(newMessages.length === 50);
     }
-  }, [authHeaders]);
-
-  const markConversationRead = useCallback(async (conversationId) => {
-    if (!conversationId) return;
-    try {
-      await fetch(`${API_BASE}/conversations/${conversationId}/read`, {
-        method: "POST",
-        headers: authHeaders
-      });
-    } catch { }
-    setConversations((prev) =>
-      prev.map((c) => (c.id === conversationId ? { ...c, unread_count: 0 } : c))
-    );
   }, [authHeaders]);
 
   useEffect(() => {
