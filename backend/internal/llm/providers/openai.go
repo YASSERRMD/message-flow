@@ -85,7 +85,9 @@ func (o *OpenAIProvider) Analyze(ctx context.Context, message string) (*contract
 }
 
 func (o *OpenAIProvider) Summarize(ctx context.Context, messages []string) (*contract.SummaryResult, error) {
-	prompt := "Summarize conversation with: summary, key_points[], action_items[], sentiment, topics[]\n\nMessages: " + joinLines(messages)
+	// Some OpenAI-compatible APIs (e.g. Groq) enforce that the prompt mentions "json"
+	// when using response_format=json_object.
+	prompt := "Return a JSON object with: summary (string), key_points (array of strings), action_items (array of strings), sentiment (string), topics (array of strings).\n\nMessages:\n" + joinLines(messages)
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
