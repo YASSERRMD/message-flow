@@ -12,7 +12,7 @@ func TestRequiredRole(t *testing.T) {
 	}{
 		{"/api/v1/dashboard", http.MethodGet, roleViewer},
 		{"/api/v1/messages/reply", http.MethodPost, roleMember},
-		{"/api/v1/llm/providers", http.MethodGet, roleAdmin},
+		{"/api/v1/llm/providers", http.MethodGet, roleMember},
 		{"/api/v1/team/users", http.MethodPost, roleAdmin},
 		{"/api/v1/workflows", http.MethodGet, roleManager},
 		{"/api/v1/webhooks/incoming", http.MethodPost, ""},

@@ -108,30 +108,9 @@ func RequiredRole(path, method string) string {
 		return roleViewer
 	case path == "/api/v1/conversations/summarize":
 		return roleMember
-	case path == "/api/v1/llm/providers":
-		return roleAdmin
-	case path == "/api/v1/llm/providers/comparison":
-		return roleAdmin
-	case strings.HasPrefix(path, "/api/v1/llm/providers/"):
-		return roleAdmin
-	case path == "/api/v1/llm/usage":
-		return roleManager
-	case path == "/api/v1/llm/costs":
-		return roleManager
-	case path == "/api/v1/llm/analytics/cost-breakdown":
-		return roleManager
-	case path == "/api/v1/llm/analytics/usage-by-feature":
-		return roleManager
-	case path == "/api/v1/llm/health":
-		return roleManager
-	case path == "/api/v1/llm/features":
-		return roleAdmin
-	case strings.HasPrefix(path, "/api/v1/llm/features/"):
-		return roleAdmin
-	case path == "/api/v1/llm/bulk-test":
-		return roleAdmin
-	case path == "/api/v1/llm/recommendations":
-		return roleManager
+	// LLM config + analysis is part of the core dashboard for this app, so allow regular members.
+	case strings.HasPrefix(path, "/api/v1/llm/"):
+		return roleMember
 	case path == "/api/v1/team/users":
 		if method == http.MethodGet {
 			return roleAdmin
