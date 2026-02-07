@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"message-flow/backend/internal/models"
+	"go.mau.fi/whatsmeow/types"
 )
 
 func (a *API) ListConversations(w http.ResponseWriter, r *http.Request) {
@@ -100,6 +101,44 @@ func (a *API) GetConversationMessages(w http.ResponseWriter, r *http.Request, co
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
+	// Best-effort sender name lookup for group conversations.
+	// This makes older messages show names even if metadata_json lacks push_name.
+	var contactNameCache map[string]string
+	var waClientLookup func(jidStr string) string
+	if a.WhatsApp != nil {
+		if cli, err := a.WhatsApp.ClientForTenant(tenantID); err == nil && cli != nil && cli.Store != nil && cli.Store.Contacts != nil {
+			contactNameCache = map[string]string{}
+			waClientLookup = func(jidStr string) string {
+				jidStr = strings.TrimSpace(jidStr)
+				if jidStr == "" {
+					return ""
+				}
+				if name, ok := contactNameCache[jidStr]; ok {
+					return name
+				}
+				jid, err := types.ParseJID(jidStr)
+				if err != nil {
+					contactNameCache[jidStr] = ""
+					return ""
+				}
+				info, err := cli.Store.Contacts.GetContact(ctx, jid)
+				if err != nil || !info.Found {
+					contactNameCache[jidStr] = ""
+					return ""
+				}
+				name := strings.TrimSpace(info.FullName)
+				if name == "" {
+					name = strings.TrimSpace(info.PushName)
+				}
+				if name == "" {
+					name = strings.TrimSpace(info.FirstName)
+				}
+				contactNameCache[jidStr] = name
+				return name
+			}
+		}
+	}
+
 	// We query newest-first for efficient "latest messages" behavior, then reverse to return
 	// chronological order for display.
 	messagesDesc := []models.Message{}
@@ -133,6 +172,11 @@ func (a *API) GetConversationMessages(w http.ResponseWriter, r *http.Request, co
 							value := strings.TrimSpace(pn)
 							msg.SenderName = &value
 						}
+					}
+				}
+				if msg.SenderName == nil && waClientLookup != nil {
+					if resolved := strings.TrimSpace(waClientLookup(msg.Sender)); resolved != "" {
+						msg.SenderName = &resolved
 					}
 				}
 				if msg.SenderName == nil {
