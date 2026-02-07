@@ -222,6 +222,11 @@ func (s *Syncer) UpsertConversation(ctx context.Context, tenantID int64, client 
 				}
 			}
 		}
+		// Never leave blank: if we can't resolve a name, fall back to the number/JID user part.
+		// This also helps overwrite bad historical values (e.g. local user's push name) on conflict.
+		if strings.TrimSpace(contactName) == "" {
+			contactName = contactNumber
+		}
 	}
 
 	// Fetch profile picture
