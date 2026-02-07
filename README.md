@@ -1,186 +1,130 @@
-<p align="center">
-  <img src="assets/logo.svg" alt="MessageFlow" width="120" />
-</p>
-
 # MessageFlow
 
-MessageFlow is a multi-tenant WhatsApp operations platform built with Go, React, and PostgreSQL. It unifies real-time messaging, LLM-driven analysis, and team workflows into a single dashboard optimized for high-volume queues.
+MessageFlow is a simple WhatsApp Web style dashboard for operations teams, backed by a Go API and PostgreSQL. It uses the `whatsmeow` Go library to connect to WhatsApp, sync conversations/messages, and stream real-time updates to the UI. It also supports LLM-powered conversation summaries and "chat with this conversation" using OpenAI-compatible providers (including Groq).
 
-## Highlights
-- Multi-tenant architecture with row-level security
-- Real-time dashboard updates via WebSocket
-- LLM provider abstraction with Claude, OpenAI, and Cohere
-- Usage, cost, and health monitoring per provider
-- Team collaboration with RBAC, workflows, and integrations
-- Action items, summaries, and prioritization built for operations
+## What You Get
+- WhatsApp pairing via QR code (multi-tenant sessions)
+- Conversation list (names, avatars, last message, unread counts)
+- Conversation view (history, group sender names)
+- Reply + forward messages
+- Real-time updates via WebSocket (new messages, unread count, last message)
+- AI features
+  - Summarize a conversation
+  - Ask questions about a conversation (RAG-like over recent messages)
+- Provider management UI (add/test providers, usage/cost/health panels)
 
-> [!WARNING]
-> WhatsApp integration uses `whatsmeow`, an unofficial library not endorsed by WhatsApp. Use at your own risk and ensure compliance with WhatsApp policies.
+> Warning: WhatsApp integration uses `whatsmeow`, which is unofficial and not endorsed by WhatsApp. Use at your own risk and in compliance with WhatsApp policies.
 
 ## Architecture
-- Go API (`backend`) with JWT authentication, rate limiting, CSRF protection, and tenant isolation
-- React dashboard (`frontend`) with componentized UI, dark/light mode, and real-time streaming
-- PostgreSQL with RLS policies and LLM usage logs
-- Redis queue for batch analysis (optional)
+- `backend/`: Go HTTP API + WebSocket hub
+- `frontend/`: React (Vite build) served by Nginx in Docker
+- `db`: PostgreSQL 15
+- `redis`: optional queue for batch LLM analysis
 
-## Tech Stack
-- Go 1.21+ (backend)
-- React + Vite (frontend)
-- PostgreSQL (data)
-- Redis (analysis queue)
-- Slack, Email, Webhooks (integrations)
+## Quick Start (Recommended: Docker Compose)
+Prereqs:
+- Docker Desktop
+- GitHub CLI (optional, only for PRs)
 
-## Quick Start
-Backend:
-- `cd backend`
-- `export DATABASE_URL=...`
-- `export JWT_SECRET=...`
-- `export MASTER_KEY=...`
-- `go run ./cmd/server`
+Start:
+```bash
+docker compose up -d --build
+```
 
-Frontend:
-- `cd frontend`
-- `npm install`
-- `npm run dev`
+Open:
+- Frontend: [http://localhost:5173](http://localhost:5173)
+- Backend API: [http://localhost:8081/api/v1](http://localhost:8081/api/v1)
 
-## Environment
-Backend:
+Ports:
+- Frontend: `5173`
+- Backend: `8081`
+- Postgres: `5432`
+- Redis: `6379`
+
+Migrations run automatically via the `migrate` service.
+
+## First Run Checklist
+1. Open the app at [http://localhost:5173](http://localhost:5173).
+2. Pair WhatsApp.
+   - Use the connect screen to generate a QR code.
+   - Scan the QR code with WhatsApp on your phone.
+3. Wait for initial sync to populate conversations and messages.
+4. Configure an LLM provider for summaries/chat (optional but recommended).
+
+## LLM Providers (Groq / OpenAI-Compatible)
+Providers are configured per tenant and stored encrypted in the DB (encrypted with `MASTER_KEY`).
+
+Groq works through the OpenAI-compatible API:
+- Base URL: `https://api.groq.com/openai/v1`
+- Model: `llama-3.3-70b-versatile` (or any Groq-supported chat model)
+
+In the UI:
+- Go to `LLM Control`
+- `Add Provider`
+- Choose `Groq`
+- Set `API Key`, `Model Name`, and (optionally) `Base URL`
+
+Notes:
+- Summaries use the default provider, and then (optionally) providers marked as fallback.
+- If you have seed/demo providers with invalid keys, keep them inactive or not-fallback to avoid confusing failures.
+
+## Configuration
+Docker Compose provides default env vars for local usage in `docker-compose.yml`.
+
+Backend env:
 - `DATABASE_URL` (required)
 - `JWT_SECRET` (required)
-- `MASTER_KEY` (required, encrypts provider API keys)
-- `PORT` (default: 8080)
-- `FRONTEND_ORIGIN` (default: http://localhost:5173)
-- `REDIS_URL` (optional, enables batch queue)
+- `MASTER_KEY` (required, encrypts LLM provider API keys)
+- `PORT` (default `8080` in container)
+- `FRONTEND_ORIGIN` (default `http://localhost:5173`)
+- `REDIS_URL` (optional)
+
+Frontend env/build args:
+- `VITE_API_BASE` (default `http://localhost:8081/api/v1`)
+- `VITE_WS_BASE` (default `ws://localhost:8081/api/v1`)
+
+## Development (Without Docker)
+Backend:
+```bash
+cd backend
+export DATABASE_URL="postgres://postgres:postgres@localhost:5432/messageflow?sslmode=disable"
+export JWT_SECRET="changeme"
+export MASTER_KEY="changemechangemechangemechangeme"
+export FRONTEND_ORIGIN="http://localhost:5173"
+go run ./cmd/server
+```
 
 Frontend:
-- `VITE_API_BASE` (default: http://localhost:8080/api/v1)
-- `VITE_WS_BASE` (default: ws://localhost:8080/api/v1)
-
-## Database Migrations
-- `backend/migrations/001_init.sql`
-- `backend/migrations/002_phase2_llm.sql`
-- `backend/migrations/003_phase3_llm_management.sql`
-- `backend/migrations/004_phase3_llm_provider_fields.sql`
-- `backend/migrations/005_phase4_team_collaboration.sql`
-
-## API Endpoints
-Core:
-- `GET /api/v1/dashboard`
-- `GET /api/v1/conversations`
-- `GET /api/v1/conversations/:id/messages`
-- `POST /api/v1/messages/reply`
-- `POST /api/v1/messages/forward`
-- `GET /api/v1/important-messages`
-- `POST /api/v1/action-items`
-- `PATCH /api/v1/action-items/:id`
-- `DELETE /api/v1/action-items/:id`
-- `GET /api/v1/action-items`
-- `GET /api/v1/daily-summary`
-
-Auth:
-- `POST /api/v1/auth/login`
-- `POST /api/v1/auth/register`
-- `GET /api/v1/auth/me`
-
-LLM:
-- `POST /api/v1/llm/providers`
-- `GET /api/v1/llm/providers`
-- `GET /api/v1/llm/providers/comparison`
-- `GET /api/v1/llm/providers/:id`
-- `GET /api/v1/llm/providers/:id/history`
-- `PATCH /api/v1/llm/providers/:id`
-- `DELETE /api/v1/llm/providers/:id`
-- `POST /api/v1/llm/providers/:id/test`
-- `POST /api/v1/messages/analyze`
-- `POST /api/v1/messages/batch-analyze`
-- `POST /api/v1/conversations/summarize`
-- `GET /api/v1/llm/usage`
-- `GET /api/v1/llm/costs`
-- `GET /api/v1/llm/health`
-- `GET /api/v1/llm/features`
-- `POST /api/v1/llm/features/:name/assign-provider`
-- `GET /api/v1/llm/features/:name/providers`
-- `DELETE /api/v1/llm/features/:name/providers/:id`
-- `GET /api/v1/llm/analytics/cost-breakdown`
-- `GET /api/v1/llm/analytics/usage-by-feature`
-- `POST /api/v1/llm/bulk-test`
-- `GET /api/v1/llm/recommendations`
-
-Team:
-- `POST /api/v1/team/users`
-- `GET /api/v1/team/users`
-- `PATCH /api/v1/team/users/:id/role`
-- `DELETE /api/v1/team/users/:id`
-- `POST /api/v1/team/invitations`
-- `GET /api/v1/team/activity`
-
-Workflows:
-- `POST /api/v1/workflows`
-- `GET /api/v1/workflows`
-- `PATCH /api/v1/workflows/:id`
-- `DELETE /api/v1/workflows/:id`
-- `POST /api/v1/workflows/:id/test`
-- `GET /api/v1/workflows/:id/executions`
-
-Integrations:
-- `POST /api/v1/integrations/:type`
-- `GET /api/v1/integrations`
-- `DELETE /api/v1/integrations/:id`
-- `GET /api/v1/integrations/:id/config`
-- `POST /api/v1/webhooks/incoming`
-
-Audit + Notifications:
-- `POST /api/v1/audit-logs`
-- `POST /api/v1/notifications`
-- `PATCH /api/v1/notifications/:id`
-
-Labels + Comments:
-- `POST /api/v1/labels`
-- `POST /api/v1/messages/:id/labels`
-- `GET /api/v1/action-items/:id/comments`
-- `POST /api/v1/action-items/:id/comments`
-- `DELETE /api/v1/comments/:id`
-
-WebSocket:
-- `GET /api/v1/ws?token=<jwt>`
-
-## LLM Providers
-Supported providers and defaults:
-- Claude: `claude-3-opus-20240229`
-- OpenAI: `gpt-4-turbo`
-- Cohere: `command-r-plus`
-
-Each provider is configured per tenant with rate limits, temperature, token caps, and cost tracking.
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
 ## Testing
-Backend tests:
-- `cd backend`
-- `go test ./...`
+Backend:
+```bash
+cd backend
+go test ./...
+```
 
-## Docker
-- `docker compose up --build`
-- Migrations run automatically on startup via the `migrate` service.
+## Troubleshooting
+- `500` on `/api/v1/conversations` or `/api/v1/dashboard`
+  - Check backend logs: `docker compose logs -f backend`
+  - Verify DB is healthy: `docker compose ps`
+- LLM summary/chat fails
+  - Ensure your user has a role (member/owner). `/api/v1/auth/me` returns `role`.
+  - Verify the provider in `LLM Control` is active and has a valid model + key.
+  - If using Groq, ensure model is a Groq chat model and base URL is `https://api.groq.com/openai/v1`.
+- WhatsApp not syncing after scan
+  - Check backend logs for session reconnect and sync status.
+  - Reconnect and re-scan from the UI if needed.
 
-## Security
-- JWT authentication on all `/api/v1/*` endpoints
-- CSRF protection on state-changing requests
-- Per-user rate limiting (60 req/min)
-- Prepared statements for all SQL access
-- RLS policies enforce tenant isolation
-- RBAC enforcement with audited permission checks
+## Contributing
+Contributions are welcome. If you want to help improve WhatsApp parity, UI behavior, or LLM features:
+- Read [CONTRIBUTING.md](CONTRIBUTING.md)
+- Open an issue or a PR with a clear description and screenshots/logs when relevant
 
-## Frontend Components
-- `DashboardPage`
-- `DailySummaryCard`
-- `ImportantMessagesTab`
-- `ActionItemsTab`
-- `TeamManagementPage`
-- `WorkflowBuilder`
-- `WorkflowListPage`
-- `IntegrationSettingsPage`
-- `AuditLogPage`
-- `AnalyticsPage`
-- `NotificationCenter`
-- `CommentThread`
-- `ActivityTimeline`
-- `KanbanBoard`
+## License
+MIT. See [LICENSE](LICENSE).
+
