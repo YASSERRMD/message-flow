@@ -37,6 +37,7 @@ export default function AddProviderModal({ open, onClose, onSubmit, providerMode
     if (!form.api_key) return "API key is required";
     if (!form.model_name && form.provider_name !== 'azure_openai') return "Model is required";
     if (form.provider_name === "azure_openai" && !form.azure_endpoint) return "Azure endpoint is required";
+    if (form.provider_name === "gemini" && !form.base_url) return "Base URL is required for Gemini (OpenAI-compatible gateway)";
     return "";
   };
 
@@ -90,6 +91,7 @@ export default function AddProviderModal({ open, onClose, onSubmit, providerMode
                 <option value="azure_openai">Azure OpenAI</option>
                 <option value="cohere">Cohere</option>
                 <option value="gemini">Gemini</option>
+                <option value="groq">Groq</option>
               </select>
             </div>
 
@@ -122,6 +124,18 @@ export default function AddProviderModal({ open, onClose, onSubmit, providerMode
               <label className="form-label">Model Name</label>
               <input className="form-control" placeholder="e.g. gpt-4" value={form.model_name} onChange={(e) => updateField("model_name", e.target.value)} />
             </div>
+
+            {(form.provider_name === "openai" || form.provider_name === "gemini" || form.provider_name === "groq") && (
+              <div className="form-group">
+                <label className="form-label">Base URL {form.provider_name === "gemini" ? "(Required)" : "(Optional)"}</label>
+                <input
+                  className="form-control"
+                  placeholder={form.provider_name === "groq" ? "https://api.groq.com/openai/v1" : "https://api.openai.com/v1"}
+                  value={form.base_url}
+                  onChange={(e) => updateField("base_url", e.target.value)}
+                />
+              </div>
+            )}
 
             <div className="form-group">
               <label className="form-label">Max Tokens</label>

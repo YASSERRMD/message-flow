@@ -7,8 +7,9 @@ import ProviderDetailsPanel from "./ProviderDetailsPanel";
 import FeatureAssignmentPanel from "./FeatureAssignmentPanel";
 import SettingsPanel from "./SettingsPanel";
 import "./llm-dashboard.css";
+import { getApiBase } from "../../lib/runtimeConfig.js";
 
-const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8081/api/v1";
+const API_BASE = getApiBase();
 
 export default function LLMProviderDashboard({ onNavigate, token, csrf }) {
   // --- View State ---

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -80,17 +81,17 @@ func (a *API) CreateProvider(w http.ResponseWriter, r *http.Request) {
 	if req.ModelName != "" {
 		config.ModelName = req.ModelName
 	}
-	if req.BaseURL != nil {
-		config.BaseURL = *req.BaseURL
+	if v := nonEmptyPtr(req.BaseURL); v != nil {
+		config.BaseURL = *v
 	}
-	if req.AzureEndpoint != nil {
-		config.AzureEndpoint = *req.AzureEndpoint
+	if v := nonEmptyPtr(req.AzureEndpoint); v != nil {
+		config.AzureEndpoint = *v
 	}
-	if req.AzureDeployment != nil {
-		config.AzureDeployment = *req.AzureDeployment
+	if v := nonEmptyPtr(req.AzureDeployment); v != nil {
+		config.AzureDeployment = *v
 	}
-	if req.AzureAPIVersion != nil {
-		config.AzureAPIVersion = *req.AzureAPIVersion
+	if v := nonEmptyPtr(req.AzureAPIVersion); v != nil {
+		config.AzureAPIVersion = *v
 	}
 	if req.Temperature != nil {
 		config.Temperature = *req.Temperature
@@ -124,6 +125,13 @@ func (a *API) CreateProvider(w http.ResponseWriter, r *http.Request) {
 		isFallback = *req.IsFallback
 	}
 
+	// Normalize optional string fields (frontend often sends empty strings).
+	displayName := nonEmptyPtr(req.DisplayName)
+	baseURL := emptyString(config.BaseURL)
+	azureEndpoint := emptyString(config.AzureEndpoint)
+	azureDeployment := emptyString(config.AzureDeployment)
+	azureAPIVersion := emptyString(config.AzureAPIVersion)
+
 	tenantID := a.tenantID(r)
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
@@ -143,7 +151,7 @@ func (a *API) CreateProvider(w http.ResponseWriter, r *http.Request) {
 			INSERT INTO llm_providers (tenant_id, provider_name, api_key, model_name, display_name, base_url, azure_endpoint, azure_deployment, azure_api_version, temperature, max_tokens, cost_per_1k_input, cost_per_1k_output, max_requests_per_minute, max_requests_per_day, monthly_budget, is_active, is_default, is_fallback, health_status, created_at)
 			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,'unknown',$20)
 			RETURNING id, tenant_id, provider_name, model_name, display_name, base_url, azure_endpoint, azure_deployment, azure_api_version, temperature, max_tokens, cost_per_1k_input, cost_per_1k_output, max_requests_per_minute, max_requests_per_day, monthly_budget, is_active, is_default, is_fallback, health_status, last_health_check, created_at`
-		return conn.QueryRow(ctx, query, tenantID, config.ProviderName, encrypted, config.ModelName, req.DisplayName, req.BaseURL, req.AzureEndpoint, req.AzureDeployment, req.AzureAPIVersion, config.Temperature, config.MaxTokens, config.CostPer1KInput, config.CostPer1KOutput, config.MaxRequestsPerMinute, maxPerDay, req.MonthlyBudget, isActive, isDefault, isFallback, time.Now().UTC()).Scan(
+		return conn.QueryRow(ctx, query, tenantID, config.ProviderName, encrypted, config.ModelName, displayName, baseURL, azureEndpoint, azureDeployment, azureAPIVersion, config.Temperature, config.MaxTokens, config.CostPer1KInput, config.CostPer1KOutput, config.MaxRequestsPerMinute, maxPerDay, req.MonthlyBudget, isActive, isDefault, isFallback, time.Now().UTC()).Scan(
 			&provider.ID, &provider.TenantID, &provider.ProviderName, &provider.ModelName, &provider.DisplayName, &provider.BaseURL, &provider.AzureEndpoint, &provider.AzureDeployment, &provider.AzureAPIVersion, &provider.Temperature, &provider.MaxTokens, &provider.CostPer1KInput, &provider.CostPer1KOutput, &provider.MaxRequestsPerMinute, &provider.MaxRequestsPerDay, &provider.MonthlyBudget, &provider.IsActive, &provider.IsDefault, &provider.IsFallback, &provider.HealthStatus, &provider.LastHealthCheck, &provider.CreatedAt,
 		)
 	}); err != nil {
@@ -252,6 +260,14 @@ func (a *API) UpdateProvider(w http.ResponseWriter, r *http.Request, providerID 
 		if req.IsDefault != nil && *req.IsDefault {
 			_, _ = conn.Exec(ctx, `UPDATE llm_providers SET is_default=FALSE WHERE tenant_id=$1`, tenantID)
 		}
+
+		// Normalize optional string pointers: treat empty strings as "not provided".
+		displayName := nonEmptyPtr(req.DisplayName)
+		baseURL := nonEmptyPtr(req.BaseURL)
+		azureEndpoint := nonEmptyPtr(req.AzureEndpoint)
+		azureDeployment := nonEmptyPtr(req.AzureDeployment)
+		azureAPIVersion := nonEmptyPtr(req.AzureAPIVersion)
+
 		query := `
 			UPDATE llm_providers
 			SET provider_name=COALESCE($1, provider_name),
@@ -274,7 +290,7 @@ func (a *API) UpdateProvider(w http.ResponseWriter, r *http.Request, providerID 
 			    is_fallback=COALESCE($18, is_fallback)
 			WHERE tenant_id=$19 AND id=$20
 			RETURNING id, tenant_id, provider_name, model_name, COALESCE(display_name, ''), COALESCE(base_url, ''), COALESCE(azure_endpoint, ''), COALESCE(azure_deployment, ''), COALESCE(azure_api_version, ''), temperature, max_tokens, cost_per_1k_input, cost_per_1k_output, max_requests_per_minute, max_requests_per_day, monthly_budget, is_active, is_default, is_fallback, health_status, last_health_check, created_at`
-		return conn.QueryRow(ctx, query, emptyString(req.ProviderName), encrypted, emptyString(req.ModelName), req.DisplayName, req.BaseURL, req.AzureEndpoint, req.AzureDeployment, req.AzureAPIVersion, req.Temperature, req.MaxTokens, req.CostPer1KInput, req.CostPer1KOutput, req.MaxRequestsPerMinute, req.MaxRequestsPerDay, req.MonthlyBudget, req.IsActive, req.IsDefault, req.IsFallback, tenantID, providerID).Scan(
+		return conn.QueryRow(ctx, query, emptyString(req.ProviderName), encrypted, emptyString(req.ModelName), displayName, baseURL, azureEndpoint, azureDeployment, azureAPIVersion, req.Temperature, req.MaxTokens, req.CostPer1KInput, req.CostPer1KOutput, req.MaxRequestsPerMinute, req.MaxRequestsPerDay, req.MonthlyBudget, req.IsActive, req.IsDefault, req.IsFallback, tenantID, providerID).Scan(
 			&provider.ID, &provider.TenantID, &provider.ProviderName, &provider.ModelName, &provider.DisplayName, &provider.BaseURL, &provider.AzureEndpoint, &provider.AzureDeployment, &provider.AzureAPIVersion, &provider.Temperature, &provider.MaxTokens, &provider.CostPer1KInput, &provider.CostPer1KOutput, &provider.MaxRequestsPerMinute, &provider.MaxRequestsPerDay, &provider.MonthlyBudget, &provider.IsActive, &provider.IsDefault, &provider.IsFallback, &provider.HealthStatus, &provider.LastHealthCheck, &provider.CreatedAt,
 		)
 	}); err != nil {
@@ -1224,9 +1240,42 @@ func defaultProviderConfig(provider string) *llm.ProviderConfig {
 			CostPer1KOutput:      0.0003,
 			MaxRequestsPerMinute: 60,
 		}
+	case "gemini":
+		// Gemini is typically used behind an OpenAI-compatible gateway. Configure base_url accordingly.
+		return &llm.ProviderConfig{
+			ProviderName:         "gemini",
+			ModelName:            "gemini-1.5-pro",
+			Temperature:          0.2,
+			MaxTokens:            1024,
+			CostPer1KInput:       0.0,
+			CostPer1KOutput:      0.0,
+			MaxRequestsPerMinute: 60,
+		}
+	case "groq":
+		return &llm.ProviderConfig{
+			ProviderName:         "groq",
+			ModelName:            "llama-3.3-70b-versatile",
+			BaseURL:              "https://api.groq.com/openai/v1",
+			Temperature:          0.2,
+			MaxTokens:            1024,
+			CostPer1KInput:       0.0,
+			CostPer1KOutput:      0.0,
+			MaxRequestsPerMinute: 60,
+		}
 	default:
 		return nil
 	}
+}
+
+func nonEmptyPtr(value *string) *string {
+	if value == nil {
+		return nil
+	}
+	v := strings.TrimSpace(*value)
+	if v == "" {
+		return nil
+	}
+	return &v
 }
 
 func emptyString(value string) *string {

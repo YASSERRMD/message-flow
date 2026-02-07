@@ -3,9 +3,10 @@ import useStoredState from "../hooks/useStoredState.js";
 import DailySummaryCard from "./DailySummaryCard";
 import ChatMessage from "./chat/ChatMessage.jsx";
 import Avatar from "./chat/Avatar.jsx";
+import { getApiBase, getWsBase } from "../lib/runtimeConfig.js";
 
-const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8081/api/v1";
-const WS_BASE = import.meta.env.VITE_WS_BASE || API_BASE.replace("http", "ws");
+const API_BASE = getApiBase();
+const WS_BASE = getWsBase(API_BASE);
 
 const defaultSummary = {
   total_conversations: 0,
@@ -140,6 +141,16 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
     const onMessage = async (event) => {
       try {
         const data = JSON.parse(event.data);
+        if (data?.type === "auth.logout") {
+          setToken("");
+          setCsrf("");
+          setAuthStatus("signed-out");
+          setConversations([]);
+          setMessages([]);
+          setSelectedConversation(null);
+          return;
+        }
+
         if (data?.type !== "message.received" && data?.type !== "message.reply" && data?.type !== "message.forward") return;
 
         const msg = data?.message || await fetchMessage(data.message_id);
