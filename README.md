@@ -173,8 +173,6 @@ Backend tests:
 - `DashboardPage`
 - `DailySummaryCard`
 - `ImportantMessagesTab`
-- `ConversationsSidebar`
-- `MessagesList`
 - `ActionItemsTab`
 - `TeamManagementPage`
 - `WorkflowBuilder`
