@@ -133,9 +133,17 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
 
     const applyConversationUpdate = (update) => {
       if (!update?.id) return;
-      setConversations((prev) => sortConversations(
-        prev.map((c) => (c.id === update.id ? { ...c, ...update } : c))
-      ));
+      let found = false;
+      setConversations((prev) => {
+        found = prev.some((c) => c.id === update.id);
+        if (!found) return prev;
+        return sortConversations(prev.map((c) => (c.id === update.id ? { ...c, ...update } : c)));
+      });
+      // WS conversation payloads may be partial (e.g. only last_message/unread_count).
+      // If we don't know this conversation yet, refresh the list to pull full metadata (name/avatar, etc).
+      if (!found) {
+        loadDashboard();
+      }
     };
 
     const onMessage = async (event) => {
@@ -222,7 +230,7 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
       }
       try { ws?.close(); } catch { }
     };
-  }, [token, authStatus, authHeaders, selectedConversation, markConversationRead, sortConversations]);
+  }, [token, authStatus, authHeaders, selectedConversation, markConversationRead, sortConversations, loadDashboard]);
 
   const loadDashboard = useCallback(async () => {
     if (!token) return;
@@ -251,6 +259,15 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
     if (authStatus === "signed-in") {
       loadDashboard();
     }
+  }, [authStatus, loadDashboard]);
+
+  // Backstop refresh in case the websocket misses updates (mobile networks, browser sleep, etc).
+  useEffect(() => {
+    if (authStatus !== "signed-in") return;
+    const timer = window.setInterval(() => {
+      loadDashboard();
+    }, 15000);
+    return () => window.clearInterval(timer);
   }, [authStatus, loadDashboard]);
 
   const loadMessages = useCallback(async (conversationId, page = 1) => {
@@ -436,7 +453,8 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
         const data = await res.json();
         setSummaryData(data.data || data);
       } else {
-        alert("Failed to summarize - make sure LLM provider is configured");
+        const err = await res.json().catch(() => ({}));
+        alert(err?.error || "Failed to summarize - make sure LLM provider is configured");
         setShowSummary(false);
       }
     } catch (err) {
