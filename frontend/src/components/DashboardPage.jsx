@@ -107,7 +107,10 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
   useEffect(() => {
     if (!token || authStatus !== "signed-in") return;
     const wsUrl = `${WS_BASE}/ws?token=${token}`;
-    const ws = new WebSocket(wsUrl);
+    let ws = null;
+    let cancelled = false;
+    let retryTimer = null;
+    let backoffMs = 750;
 
     const fetchMessage = async (messageId) => {
       const res = await fetch(`${API_BASE}/messages/${messageId}`, { headers: authHeaders });
@@ -134,7 +137,7 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
       ));
     };
 
-    ws.onmessage = async (event) => {
+    const onMessage = async (event) => {
       try {
         const data = JSON.parse(event.data);
         if (data?.type !== "message.received" && data?.type !== "message.reply" && data?.type !== "message.forward") return;
@@ -166,7 +169,48 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
         }
       } catch { }
     };
-    return () => ws.close();
+
+    const scheduleReconnect = () => {
+      if (cancelled) return;
+      if (retryTimer) return;
+      retryTimer = window.setTimeout(() => {
+        retryTimer = null;
+        connect();
+      }, backoffMs);
+      backoffMs = Math.min(Math.floor(backoffMs * 1.6), 8000);
+    };
+
+    const connect = () => {
+      if (cancelled) return;
+      try {
+        ws = new WebSocket(wsUrl);
+      } catch {
+        scheduleReconnect();
+        return;
+      }
+
+      ws.onopen = () => {
+        backoffMs = 750;
+      };
+      ws.onmessage = onMessage;
+      ws.onerror = () => {
+        // Some browsers won't always emit onclose after onerror; force close to trigger reconnect.
+        try { ws?.close(); } catch { }
+      };
+      ws.onclose = () => {
+        scheduleReconnect();
+      };
+    };
+
+    connect();
+
+    return () => {
+      cancelled = true;
+      if (retryTimer) {
+        window.clearTimeout(retryTimer);
+      }
+      try { ws?.close(); } catch { }
+    };
   }, [token, authStatus, authHeaders, selectedConversation, markConversationRead, sortConversations]);
 
   const loadDashboard = useCallback(async () => {
