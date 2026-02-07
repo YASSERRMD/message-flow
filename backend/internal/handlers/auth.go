@@ -45,12 +45,20 @@ func (a *API) Register(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	var user models.User
+	role := "member"
 	query := `
 		INSERT INTO users (email, password_hash, tenant_id, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5)
 		RETURNING id, email, password_hash, tenant_id, created_at, updated_at`
 
 	if err := a.Store.WithTenantConn(ctx, req.TenantID, func(conn *pgxpool.Conn) error {
+		var count int
+		if err := conn.QueryRow(ctx, `SELECT COUNT(*) FROM users WHERE tenant_id=$1`, req.TenantID).Scan(&count); err != nil {
+			return err
+		}
+		if count == 0 {
+			role = "owner"
+		}
 		return conn.QueryRow(ctx, query, req.Email, string(passwordHash), req.TenantID, time.Now().UTC(), time.Now().UTC()).Scan(
 			&user.ID, &user.Email, &user.PasswordHash, &user.TenantID, &user.CreatedAt, &user.UpdatedAt,
 		)
@@ -59,22 +67,11 @@ func (a *API) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Correctly create entry in user_roles or extended table if needed
-	// Assuming logic from orphaned block: create users_extended and team_members
-	// But those tables might not exist in original schema viewing.
-	// Looking at migration 001, we only have 'users'.
-	// Step 1834 showed: INSERT INTO users_extended, INSERT INTO team_members.
-	// Assume these tables exist from a migration I haven't seen or from the orphaned block.
-	// SAFE PATH: Just stick to the core logic I see in 1881 and 1886: user creation + token generation.
-	// Wait, Step 1834 explicitely showed logic inserting into users_extended.
-	// I will include that logic to be safe, assuming the schema supports it.
-
-	// Actually, looking at 1881, the code ended at line 60 with "registered".
-	// The code at 1834 was what I was *trying* to delete because it looked orphaned.
-	// Maybe it WAS orphaned because it was from an older version?
-	// The migration 001 (Step 1768) DOES NOT show `users_extended` or `team_members`.
-	// Therefore, that code WAS orphaned and invalid.
-	// I will NOT include it.
+	// Ensure this user can actually access member/owner endpoints (RBAC reads users_extended).
+	if err := a.setUserRole(ctx, req.TenantID, user.ID, role); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to assign role")
+		return
+	}
 
 	csrfToken, err := auth.GenerateCSRFToken()
 	if err != nil {
@@ -91,11 +88,6 @@ func (a *API) Register(w http.ResponseWriter, r *http.Request) {
 	a.logActivity(ctx, user.TenantID, auth.User{ID: user.ID, TenantID: user.TenantID, Email: user.Email}, "auth.register", map[string]any{
 		"user_id": user.ID,
 	})
-
-	// Removed getUserRole call as the function is being removed.
-	// For now, we'll hardcode "member" or assume a default role.
-	// In a real application, this would involve querying a `user_roles` table.
-	role := "member"
 
 	writeJSON(w, http.StatusCreated, map[string]any{
 		"result": "registered",
@@ -140,6 +132,28 @@ func (a *API) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	role, roleErr := a.getUserRole(ctx, user.TenantID, user.ID)
+	if roleErr != nil || role == "" || role == "viewer" {
+		// Bootstrap role records for users created before team/roles migrations (or after bugs).
+		// Default: member; first user in tenant: owner.
+		fallbackRole := "member"
+		_ = a.Store.WithTenantConn(ctx, user.TenantID, func(conn *pgxpool.Conn) error {
+			var count int
+			if err := conn.QueryRow(ctx, `SELECT COUNT(*) FROM users WHERE tenant_id=$1`, user.TenantID).Scan(&count); err != nil {
+				return err
+			}
+			if count == 1 {
+				fallbackRole = "owner"
+			}
+			return nil
+		})
+		if err := a.setUserRole(ctx, user.TenantID, user.ID, fallbackRole); err == nil {
+			role = fallbackRole
+		} else {
+			role = "viewer"
+		}
+	}
+
 	csrfToken, err := auth.GenerateCSRFToken()
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to generate csrf token")
@@ -155,8 +169,6 @@ func (a *API) Login(w http.ResponseWriter, r *http.Request) {
 	a.logActivity(ctx, user.TenantID, auth.User{ID: user.ID, TenantID: user.TenantID, Email: user.Email}, "auth.login", map[string]any{
 		"user_id": user.ID,
 	})
-
-	role, _ := a.getUserRole(ctx, user.TenantID, user.ID)
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"token": jwtToken,
@@ -191,8 +203,10 @@ func (a *API) Me(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	role, _ := a.getUserRole(ctx, user.TenantID, user.ID)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"user": record,
+		"role": role,
 	})
 }
 

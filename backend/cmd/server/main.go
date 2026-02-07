@@ -85,9 +85,11 @@ func main() {
 	server := &http.Server{
 		Addr:         ":" + cfg.Port,
 		Handler:      rt,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 10 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		// Some endpoints (LLM summarize/chat, WhatsApp sync) can legitimately take >10s.
+		// A short WriteTimeout causes clients to see "Empty reply from server".
+		ReadTimeout:  30 * time.Second,
+		WriteTimeout: 3 * time.Minute,
+		IdleTimeout:  2 * time.Minute,
 	}
 
 	go func() {
