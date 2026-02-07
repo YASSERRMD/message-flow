@@ -41,10 +41,18 @@ func (s *Syncer) Attach(tenantID int64, client *whatsmeow.Client) {
 		switch event := evt.(type) {
 		case *events.Message:
 			log.Printf("[Syncer] Received *events.Message from %s", event.Info.Chat.String())
-			s.handleMessage(ctx, tenantID, client, event.Info, event.Message, event.Info.Chat, event.Info.PushName, false)
+			contactName := event.Info.PushName
+			if event.Info.Chat.Server == "g.us" {
+				contactName = ""
+			}
+			s.handleMessage(ctx, tenantID, client, event.Info, event.Message, event.Info.Chat, contactName, false)
 		case events.Message:
 			log.Printf("[Syncer] Received events.Message from %s", event.Info.Chat.String())
-			s.handleMessage(ctx, tenantID, client, event.Info, event.Message, event.Info.Chat, event.Info.PushName, false)
+			contactName := event.Info.PushName
+			if event.Info.Chat.Server == "g.us" {
+				contactName = ""
+			}
+			s.handleMessage(ctx, tenantID, client, event.Info, event.Message, event.Info.Chat, contactName, false)
 		case *events.HistorySync:
 			log.Printf("[Syncer] Received *events.HistorySync with %d conversations", len(event.Data.GetConversations()))
 			s.handleHistorySync(ctx, tenantID, client, event)
@@ -101,10 +109,6 @@ func (s *Syncer) handleMessage(ctx context.Context, tenantID int64, client *what
 	// For media-only messages, set a placeholder content
 	if content == "" && mediaInfo != nil {
 		content = "[" + mediaInfo.Type + "]"
-	}
-
-	if contactName == "" {
-		contactName = strings.TrimSpace(info.PushName)
 	}
 
 	// Ensure conversation exists and get ID
