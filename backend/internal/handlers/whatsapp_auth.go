@@ -107,6 +107,11 @@ func (a *API) WhatsAppAuthStatus(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusInternalServerError, "failed to finalize whatsapp login")
 			return
 		}
+		// Kick off a background contact sync so the dashboard populates shortly after pairing.
+		// The QR channel may remain open for a while, so relying solely on manager.consumeQR can delay sync.
+		if a.WhatsApp != nil {
+			go a.WhatsApp.SyncContactsForTenant(session.TenantID)
+		}
 		writeJSON(w, http.StatusOK, map[string]any{
 			"status":    session.Status,
 			"session":   response,
