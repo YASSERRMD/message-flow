@@ -66,15 +66,17 @@ func (s *Syncer) Attach(tenantID int64, client *whatsmeow.Client) {
 			}
 		case *events.Message:
 			log.Printf("[Syncer] Received *events.Message from %s", event.Info.Chat.String())
-			contactName := event.Info.PushName
-			if event.Info.Chat.Server == "g.us" {
+			contactName := strings.TrimSpace(event.Info.PushName)
+			// For group chats, always resolve name from group subject.
+			// For outbound messages, PushName may be the local user's name, so don't use it for the chat.
+			if event.Info.Chat.Server == "g.us" || event.Info.IsFromMe {
 				contactName = ""
 			}
 			s.handleMessage(ctx, tenantID, client, event.Info, event.Message, event.Info.Chat, contactName, false)
 		case events.Message:
 			log.Printf("[Syncer] Received events.Message from %s", event.Info.Chat.String())
-			contactName := event.Info.PushName
-			if event.Info.Chat.Server == "g.us" {
+			contactName := strings.TrimSpace(event.Info.PushName)
+			if event.Info.Chat.Server == "g.us" || event.Info.IsFromMe {
 				contactName = ""
 			}
 			s.handleMessage(ctx, tenantID, client, event.Info, event.Message, event.Info.Chat, contactName, false)
@@ -147,7 +149,7 @@ func (s *Syncer) handleMessage(ctx context.Context, tenantID int64, client *what
 		return
 	}
 
-	messageID, inserted, err := s.insertMessage(ctx, tenantID, conversationID, info, content, chatJID, mediaInfo)
+	messageID, inserted, err := s.insertMessage(ctx, tenantID, conversationID, client, info, content, chatJID, mediaInfo)
 	if err != nil || !inserted {
 		return
 	}
@@ -320,7 +322,7 @@ func (s *Syncer) wsConversationUpdate(ctx context.Context, tenantID, conversatio
 	}, nil
 }
 
-func (s *Syncer) insertMessage(ctx context.Context, tenantID, conversationID int64, info types.MessageInfo, content string, chatJID types.JID, mediaInfo *MediaInfo) (int64, bool, error) {
+func (s *Syncer) insertMessage(ctx context.Context, tenantID, conversationID int64, client *whatsmeow.Client, info types.MessageInfo, content string, chatJID types.JID, mediaInfo *MediaInfo) (int64, bool, error) {
 	var id int64
 	inserted := false
 	err := s.Store.WithTenantConn(ctx, tenantID, func(conn *pgxpool.Conn) error {
@@ -342,12 +344,31 @@ func (s *Syncer) insertMessage(ctx context.Context, tenantID, conversationID int
 		if info.IsFromMe {
 			sender = "me"
 		}
+
+		// Best-effort: capture the sender's display name for group messages.
+		// Note: info.PushName is not always populated for group messages, so fall back to contact store.
+		pushName := strings.TrimSpace(info.PushName)
+		if pushName == "" && !info.IsFromMe && client != nil {
+			if contact, err := client.Store.Contacts.GetContact(ctx, info.Sender); err == nil && contact.Found {
+				if contact.FullName != "" {
+					pushName = contact.FullName
+				} else if contact.PushName != "" {
+					pushName = contact.PushName
+				} else if contact.FirstName != "" {
+					pushName = contact.FirstName
+				}
+			}
+		}
+		if pushName == "" && !info.IsFromMe {
+			pushName = strings.TrimSpace(info.Sender.User)
+		}
+
 		meta := map[string]any{
 			"source":      "whatsapp",
 			"whatsapp_id": info.ID,
 			"sender":      sender,
 			"chat":        chatJID.String(),
-			"push_name":   info.PushName,
+			"push_name":   pushName,
 		}
 		// Include media info if present
 		if mediaInfo != nil {

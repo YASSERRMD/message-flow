@@ -105,6 +105,29 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
     );
   }, [authHeaders]);
 
+  const loadDashboard = useCallback(async () => {
+    if (!token) return;
+    try {
+      const [convRes, summRes, dailyRes] = await Promise.all([
+        fetch(`${API_BASE}/conversations`, { headers: authHeaders }),
+        fetch(`${API_BASE}/dashboard`, { headers: authHeaders }),
+        fetch(`${API_BASE}/daily-summary`, { headers: authHeaders })
+      ]);
+      if (convRes.ok) {
+        const data = await convRes.json();
+        setConversations(sortConversations(data.data || []));
+      }
+      if (summRes.ok) {
+        const data = await summRes.json();
+        setSummary(data || defaultSummary);
+      }
+      if (dailyRes.ok) {
+        const data = await dailyRes.json();
+        setDailySummary(data);
+      }
+    } catch { }
+  }, [token, authHeaders, sortConversations]);
+
   useEffect(() => {
     if (!token || authStatus !== "signed-in") return;
     const wsUrl = `${WS_BASE}/ws?token=${token}`;
@@ -231,29 +254,6 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
       try { ws?.close(); } catch { }
     };
   }, [token, authStatus, authHeaders, selectedConversation, markConversationRead, sortConversations, loadDashboard]);
-
-  const loadDashboard = useCallback(async () => {
-    if (!token) return;
-    try {
-      const [convRes, summRes, dailyRes] = await Promise.all([
-        fetch(`${API_BASE}/conversations`, { headers: authHeaders }),
-        fetch(`${API_BASE}/dashboard`, { headers: authHeaders }),
-        fetch(`${API_BASE}/daily-summary`, { headers: authHeaders })
-      ]);
-      if (convRes.ok) {
-        const data = await convRes.json();
-        setConversations(sortConversations(data.data || []));
-      }
-      if (summRes.ok) {
-        const data = await summRes.json();
-        setSummary(data || defaultSummary);
-      }
-      if (dailyRes.ok) {
-        const data = await dailyRes.json();
-        setDailySummary(data);
-      }
-    } catch { }
-  }, [token, authHeaders, sortConversations]);
 
   useEffect(() => {
     if (authStatus === "signed-in") {
