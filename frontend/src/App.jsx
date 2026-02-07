@@ -13,7 +13,7 @@ export default function App() {
   const [view, setView] = useState("operations");
   const [role, setRole] = useState("viewer");
   const [token, setToken] = useStoredState("mf-token", "");
-  const [csrf] = useStoredState("mf-csrf", "");
+  const [csrf, setCsrf] = useStoredState("mf-csrf", "");
   const [theme, setTheme] = useStoredState("mf-theme", "light");
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -21,8 +21,22 @@ export default function App() {
     document.documentElement.dataset.theme = theme;
   }, [theme]);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    // Ensure WhatsApp session is disconnected server-side too.
+    try {
+      if (token) {
+        await fetch(`${API_BASE}/auth/logout`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+            "X-CSRF-Token": csrf || ""
+          }
+        });
+      }
+    } catch { }
     setToken("");
+    setCsrf("");
     window.location.reload();
   };
 
@@ -36,6 +50,11 @@ export default function App() {
     })
       .then((res) => res.json())
       .then((data) => {
+        if (data?.error === "unauthorized" || data?.error === "forbidden") {
+          setToken("");
+          setCsrf("");
+          return;
+        }
         if (data?.role) {
           setRole(data.role);
         }
