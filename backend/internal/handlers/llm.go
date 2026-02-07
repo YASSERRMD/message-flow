@@ -430,13 +430,19 @@ func (a *API) SummarizeConversation(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Minute)
 	defer cancel()
 
+	const maxSummaryMessages = 200
+
 	messages := req.Messages
 	conversationID := req.ConversationID
 	if len(messages) == 0 && conversationID != nil {
 		messages = []string{}
 		if err := a.Store.WithTenantConn(ctx, tenantID, func(conn *pgxpool.Conn) error {
 			rows, err := conn.Query(ctx, `
-				SELECT content FROM messages WHERE tenant_id=$1 AND conversation_id=$2 ORDER BY timestamp ASC`, tenantID, *conversationID)
+				SELECT content
+				FROM messages
+				WHERE tenant_id=$1 AND conversation_id=$2 AND content <> ''
+				ORDER BY timestamp DESC
+				LIMIT $3`, tenantID, *conversationID, maxSummaryMessages)
 			if err != nil {
 				return err
 			}
@@ -453,42 +459,73 @@ func (a *API) SummarizeConversation(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusInternalServerError, "failed to load messages: "+err.Error())
 			return
 		}
+		// We selected newest-first for efficiency; reverse to chronological order.
+		for i, j := 0, len(messages)-1; i < j; i, j = i+1, j-1 {
+			messages[i], messages[j] = messages[j], messages[i]
+		}
 	}
 	if len(messages) == 0 {
 		writeError(w, http.StatusBadRequest, "messages or conversation_id required")
 		return
+	}
+	if len(messages) > maxSummaryMessages {
+		messages = messages[len(messages)-maxSummaryMessages:]
 	}
 
 	providerID := int64(0)
 	if req.ProviderID != nil {
 		providerID = *req.ProviderID
 	}
-	if providerID == 0 {
-		provider, err := a.LLM.Router.GetDefaultProvider(ctx, tenantID)
-		if err != nil {
-			// Continue to fallback
-		} else {
-			providerID = provider.GetConfig().ID
-		}
-	}
 
+	// Try chosen provider, then fall back to other active providers.
+	// Returning a synthetic summary makes the UI look "successful" but is misleading.
 	var result *llm.SummaryResult
-	var err error
+	var lastErr error
+	tried := map[int64]bool{}
 
-	if providerID != 0 {
-		result, err = a.LLM.Summarize(ctx, tenantID, providerID, messages)
-	} else {
-		err = errors.New("no provider available")
+	tryProvider := func(id int64) bool {
+		if id == 0 || tried[id] {
+			return false
+		}
+		tried[id] = true
+		res, err := a.LLM.Summarize(ctx, tenantID, id, messages)
+		if err != nil {
+			lastErr = err
+			return false
+		}
+		result = res
+		return true
 	}
 
-	if err != nil {
-		// Mock fallback: return sample summary when LLM fails
-		result = &llm.SummaryResult{
-			Summary:     "This conversation discusses various topics. Due to a temporary service issue, an AI-generated summary is not available at this time.",
-			KeyPoints:   []string{"Multiple messages exchanged", "Topics discussed include general conversation"},
-			ActionItems: []string{},
-			Sentiment:   "neutral",
-			Topics:      []string{"general"},
+	// If a provider was explicitly requested, only use it.
+	if providerID != 0 {
+		if !tryProvider(providerID) {
+			writeError(w, http.StatusBadGateway, "LLM summarize failed: "+lastErr.Error())
+			return
+		}
+	} else {
+		// Default provider first (if any), then try the rest.
+		if provider, err := a.LLM.Router.GetDefaultProvider(ctx, tenantID); err == nil && provider != nil {
+			_ = tryProvider(provider.GetConfig().ID)
+		}
+		ids, err := a.LLM.Store.ListProviderIDs(ctx, tenantID)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to list providers: "+err.Error())
+			return
+		}
+		for _, id := range ids {
+			if result != nil {
+				break
+			}
+			_ = tryProvider(id)
+		}
+		if result == nil {
+			if lastErr == nil {
+				writeError(w, http.StatusServiceUnavailable, "no active LLM providers configured")
+				return
+			}
+			writeError(w, http.StatusBadGateway, "LLM summarize failed: "+lastErr.Error())
+			return
 		}
 	}
 
