@@ -3,7 +3,11 @@ package whatsapp
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
+	"mime"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -21,13 +25,14 @@ import (
 )
 
 type Syncer struct {
-	Store *db.Store
-	Queue *llm.Queue
-	Hub   *realtime.Hub
+	Store    *db.Store
+	Queue    *llm.Queue
+	Hub      *realtime.Hub
+	MediaDir string
 }
 
-func NewSyncer(store *db.Store, queue *llm.Queue, hub *realtime.Hub) *Syncer {
-	return &Syncer{Store: store, Queue: queue, Hub: hub}
+func NewSyncer(store *db.Store, queue *llm.Queue, hub *realtime.Hub, mediaDir string) *Syncer {
+	return &Syncer{Store: store, Queue: queue, Hub: hub, MediaDir: mediaDir}
 }
 
 func (s *Syncer) Attach(tenantID int64, client *whatsmeow.Client) {
@@ -147,6 +152,14 @@ func (s *Syncer) handleMessage(ctx context.Context, tenantID int64, client *what
 	if conversationID == 0 {
 		log.Printf("[Syncer] UpsertConversation returned 0 ID")
 		return
+	}
+
+	// Download media to disk before inserting the message
+	if mediaInfo != nil && s.MediaDir != "" {
+		relPath := s.downloadMedia(ctx, client, msg, tenantID, conversationID, info.ID, mediaInfo)
+		if relPath != "" {
+			mediaInfo.MediaPath = relPath
+		}
 	}
 
 	messageID, inserted, err := s.insertMessage(ctx, tenantID, conversationID, client, info, content, chatJID, mediaInfo)
@@ -428,13 +441,14 @@ func extractText(msg *waE2E.Message) string {
 
 // MediaInfo holds extracted media metadata
 type MediaInfo struct {
-	Type     string `json:"media_type,omitempty"` // image, video, audio, document, sticker
-	MimeType string `json:"mime_type,omitempty"`
-	FileName string `json:"file_name,omitempty"`
-	Caption  string `json:"caption,omitempty"`
-	FileSize uint64 `json:"file_size,omitempty"`
-	Seconds  uint32 `json:"duration_seconds,omitempty"`
-	HasMedia bool   `json:"has_media"`
+	Type      string `json:"media_type,omitempty"` // image, video, audio, document, sticker
+	MimeType  string `json:"mime_type,omitempty"`
+	FileName  string `json:"file_name,omitempty"`
+	Caption   string `json:"caption,omitempty"`
+	FileSize  uint64 `json:"file_size,omitempty"`
+	Seconds   uint32 `json:"duration_seconds,omitempty"`
+	HasMedia  bool   `json:"has_media"`
+	MediaPath string `json:"media_path,omitempty"`
 }
 
 func extractMediaInfo(msg *waE2E.Message) *MediaInfo {
@@ -494,4 +508,81 @@ func extractMediaInfo(msg *waE2E.Message) *MediaInfo {
 	}
 
 	return nil
+}
+
+// downloadMedia downloads the raw media bytes from WhatsApp and saves to disk.
+// It returns the relative path (tenant/convo/file) on success, empty string on failure.
+func (s *Syncer) downloadMedia(ctx context.Context, client *whatsmeow.Client, msg *waE2E.Message, tenantID, conversationID int64, whatsappID string, mediaInfo *MediaInfo) string {
+	if client == nil || msg == nil {
+		return ""
+	}
+
+	// Determine which downloadable message to use
+	var downloadable whatsmeow.DownloadableMessage
+	switch {
+	case msg.GetImageMessage() != nil:
+		downloadable = msg.GetImageMessage()
+	case msg.GetVideoMessage() != nil:
+		downloadable = msg.GetVideoMessage()
+	case msg.GetAudioMessage() != nil:
+		downloadable = msg.GetAudioMessage()
+	case msg.GetDocumentMessage() != nil:
+		downloadable = msg.GetDocumentMessage()
+	case msg.GetStickerMessage() != nil:
+		downloadable = msg.GetStickerMessage()
+	default:
+		return ""
+	}
+
+	data, err := client.Download(ctx, downloadable)
+	if err != nil {
+		log.Printf("[Syncer] Failed to download media for %s: %v", whatsappID, err)
+		return ""
+	}
+
+	ext := mimeToExt(mediaInfo.MimeType, mediaInfo.Type)
+	relDir := fmt.Sprintf("%d/%d", tenantID, conversationID)
+	absDir := filepath.Join(s.MediaDir, relDir)
+
+	if err := os.MkdirAll(absDir, 0o755); err != nil {
+		log.Printf("[Syncer] Failed to create media dir %s: %v", absDir, err)
+		return ""
+	}
+
+	fileName := whatsappID + ext
+	absPath := filepath.Join(absDir, fileName)
+	if err := os.WriteFile(absPath, data, 0o644); err != nil {
+		log.Printf("[Syncer] Failed to write media file %s: %v", absPath, err)
+		return ""
+	}
+
+	relPath := filepath.Join(relDir, fileName)
+	log.Printf("[Syncer] Saved media: %s (%d bytes)", relPath, len(data))
+	return relPath
+}
+
+// mimeToExt returns a file extension for a MIME type.
+func mimeToExt(mimeType, mediaType string) string {
+	// Try standard library first
+	if mimeType != "" {
+		exts, _ := mime.ExtensionsByType(mimeType)
+		if len(exts) > 0 {
+			return exts[0]
+		}
+	}
+	// Fallback based on media type
+	switch mediaType {
+	case "image":
+		return ".jpg"
+	case "video":
+		return ".mp4"
+	case "audio":
+		return ".ogg"
+	case "document":
+		return ".bin"
+	case "sticker":
+		return ".webp"
+	default:
+		return ".bin"
+	}
 }

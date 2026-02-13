@@ -67,7 +67,7 @@ func main() {
 		}
 	}
 	if waManager != nil {
-		waSyncer := whatsapp.NewSyncer(store, llmQueue, hub)
+		waSyncer := whatsapp.NewSyncer(store, llmQueue, hub, cfg.MediaDir)
 		waManager.SetSyncer(waSyncer)
 		// Auto-reconnect existing WhatsApp sessions on startup
 		go func() {
@@ -78,13 +78,13 @@ func main() {
 		}()
 	}
 
-	api := handlers.NewAPI(store, authService, hub, llmService, llmStore, llmQueue, healthScheduler, workerScheduler, waManager)
+	api := handlers.NewAPI(store, authService, hub, llmService, llmStore, llmQueue, healthScheduler, workerScheduler, waManager, cfg.MediaDir)
 	limiter := middleware.NewRateLimiter(60, time.Minute)
 	rt := router.New(api, authService, limiter, cfg.FrontendOrigin, hub)
 
 	server := &http.Server{
-		Addr:         ":" + cfg.Port,
-		Handler:      rt,
+		Addr:    ":" + cfg.Port,
+		Handler: rt,
 		// Some endpoints (LLM summarize/chat, WhatsApp sync) can legitimately take >10s.
 		// A short WriteTimeout causes clients to see "Empty reply from server".
 		ReadTimeout:  30 * time.Second,

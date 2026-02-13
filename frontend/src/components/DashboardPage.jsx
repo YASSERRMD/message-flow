@@ -582,6 +582,8 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
           message={msg}
           isGroup={isGroupConversation}
           formatTime={formatTime}
+          token={token}
+          apiBase={API_BASE}
         />
       );
     }
@@ -672,16 +674,16 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
                       <span className="conv-time">{formatTime(conv.last_message_at)}</span>
                     </div>
                     <div className="conv-preview">{conv.last_message || "No messages yet..."}</div>
-                  <div className="conv-meta">
-                    {isGroup && <span><i className="fas fa-users"></i> Group</span>}
-                    {(conv.unread_count || 0) > 0 && (
-                      <span className="unread-badge">{conv.unread_count}</span>
-                    )}
+                    <div className="conv-meta">
+                      {isGroup && <span><i className="fas fa-users"></i> Group</span>}
+                      {(conv.unread_count || 0) > 0 && (
+                        <span className="unread-badge">{conv.unread_count}</span>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
           </div>
         </aside>
 
@@ -717,14 +719,14 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
                 </div>
               </div>
 
-                <div className="messages-container" onScroll={handleMessagesScroll} ref={messagesContainerRef}>
-                  <div className="message-group">
-                    {loadingMore && hasMoreMessages && (
-                      <div className="message-date">Loading older messages...</div>
-                    )}
-                    {renderedMessages}
-                  </div>
+              <div className="messages-container" onScroll={handleMessagesScroll} ref={messagesContainerRef}>
+                <div className="message-group">
+                  {loadingMore && hasMoreMessages && (
+                    <div className="message-date">Loading older messages...</div>
+                  )}
+                  {renderedMessages}
                 </div>
+              </div>
 
               <div className="message-input-area">
                 <div className="input-wrapper">
