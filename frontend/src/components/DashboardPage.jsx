@@ -605,6 +605,33 @@ export default function DashboardPage({ onNavigate, searchTerm = "", onMetaChang
     return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   };
 
+  const formatConversationTime = (dateStr) => {
+    if (!dateStr) return "";
+    const date = new Date(dateStr);
+    if (Number.isNaN(date.getTime())) return "";
+    const now = new Date();
+    if (date.toDateString() === now.toDateString()) {
+      return formatTime(dateStr);
+    }
+    const diffDays = Math.floor((now - date) / (1000 * 60 * 60 * 24));
+    if (diffDays < 6) {
+      return date.toLocaleDateString([], { weekday: "short" });
+    }
+    return date.toLocaleDateString([], { month: "short", day: "numeric" });
+  };
+
+  const formatDateTimeLabel = (dateStr) => {
+    if (!dateStr) return "No recent activity";
+    const date = new Date(dateStr);
+    if (Number.isNaN(date.getTime())) return "No recent activity";
+    return date.toLocaleString([], {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit"
+    });
+  };
+
   const toDayKey = (dateStr) => {
     if (!dateStr) return "unknown";
     const d = new Date(dateStr);
@@ -637,6 +664,12 @@ export default function DashboardPage({ onNavigate, searchTerm = "", onMetaChang
       (selectedConversation.contact_number || "").startsWith("12036")
     );
   }, [selectedConversation]);
+
+  const selectedConversationName = selectedConversation
+    ? (selectedConversation.contact_name || (selectedConversation.contact_number || "").split("@")[0] || "Unknown")
+    : "";
+  const selectedConversationAddress = selectedConversation?.contact_number || "Unknown contact";
+  const selectedConversationLastActive = formatDateTimeLabel(selectedConversation?.last_message_at);
 
   const loadedMediaItems = useMemo(() => (
     messages
@@ -831,7 +864,7 @@ export default function DashboardPage({ onNavigate, searchTerm = "", onMetaChang
                   <div className="conv-content">
                     <div className="conv-header">
                       <span className="conv-name">{name}</span>
-                      <span className="conv-time">{formatTime(conv.last_message_at)}</span>
+                      <span className="conv-time">{formatConversationTime(conv.last_message_at)}</span>
                     </div>
                     <div className="conv-preview">{conv.last_message || "No messages yet..."}</div>
                     <div className="conv-meta">
@@ -852,18 +885,39 @@ export default function DashboardPage({ onNavigate, searchTerm = "", onMetaChang
           {selectedConversation ? (
             <>
               <div className="chat-header">
-                <div className="chat-user-info">
-                  <Avatar
-                    className="chat-avatar"
-                    src={conversationAvatarSrc(selectedConversation.id)}
-                    name={selectedConversation.contact_name || selectedConversation.contact_number}
-                  />
-                  <div className="chat-details">
-                    <h3>{selectedConversation.contact_name || (selectedConversation.contact_number || "").split("@")[0]}</h3>
-                    <p>{selectedConversation.contact_number}</p>
-                    <div className="chat-detail-chips">
-                      <span className="chat-chip">{isGroupConversation ? "Group" : "Direct chat"}</span>
-                      <span className="chat-chip">{messages.length} loaded messages</span>
+                <div className="chat-hero">
+                  <div className="chat-user-info">
+                    <Avatar
+                      className="chat-avatar"
+                      src={conversationAvatarSrc(selectedConversation.id)}
+                      name={selectedConversationName}
+                    />
+                    <div className="chat-details">
+                      <h3>{selectedConversationName}</h3>
+                      <p className="chat-subline">{selectedConversationAddress}</p>
+                      <div className="chat-detail-chips">
+                        <span className="chat-chip">{isGroupConversation ? "Group conversation" : "Direct conversation"}</span>
+                        <span className="chat-chip">{selectedConversationLastActive}</span>
+                        <span className="chat-chip">{loadedMediaItems.length} media loaded</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="chat-hero-stats">
+                    <div className="chat-hero-stat">
+                      <span>Timeline</span>
+                      <strong>{messages.length}</strong>
+                    </div>
+                    <div className="chat-hero-stat">
+                      <span>Unread</span>
+                      <strong>{selectedConversation.unread_count || 0}</strong>
+                    </div>
+                    <div className="chat-hero-stat">
+                      <span>Attachments</span>
+                      <strong>{loadedMediaItems.length}</strong>
+                    </div>
+                    <div className="chat-hero-stat">
+                      <span>Last event</span>
+                      <strong>{formatConversationTime(selectedConversation.last_message_at) || "Now"}</strong>
                     </div>
                   </div>
                 </div>
@@ -916,6 +970,43 @@ export default function DashboardPage({ onNavigate, searchTerm = "", onMetaChang
 
         {/* Info Sidebar */}
         <aside className="info-sidebar">
+          {selectedConversation && (
+            <div className="info-section conversation-brief-card">
+              <div className="conversation-brief-top">
+                <Avatar
+                  className="conversation-brief-avatar"
+                  src={conversationAvatarSrc(selectedConversation.id)}
+                  name={selectedConversationName}
+                />
+                <div className="conversation-brief-copy">
+                  <h4>{selectedConversationName}</h4>
+                  <p>{selectedConversationAddress}</p>
+                </div>
+                {(selectedConversation.unread_count || 0) > 0 && (
+                  <span className="conversation-brief-alert">{selectedConversation.unread_count} new</span>
+                )}
+              </div>
+              <div className="conversation-brief-grid">
+                <div className="conversation-brief-metric">
+                  <span>Type</span>
+                  <strong>{isGroupConversation ? "Group" : "Direct"}</strong>
+                </div>
+                <div className="conversation-brief-metric">
+                  <span>Last active</span>
+                  <strong>{selectedConversationLastActive}</strong>
+                </div>
+                <div className="conversation-brief-metric">
+                  <span>Loaded history</span>
+                  <strong>{messages.length} msgs</strong>
+                </div>
+                <div className="conversation-brief-metric">
+                  <span>Media</span>
+                  <strong>{loadedMediaItems.length} files</strong>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="stats-grid">
             <div className="stat-box">
               <div className="stat-value">{summary.total_conversations ?? 0}</div>
