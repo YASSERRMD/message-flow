@@ -28,7 +28,7 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
   const [messages, setMessages] = useState([]);
   const [messagesPage, setMessagesPage] = useState(1);
   const [hasMoreMessages, setHasMoreMessages] = useState(true);
-  const [selectedConversation, setSelectedConversation] = useState(null);
+  const [selectedConversationId, setSelectedConversationId] = useState(null);
   const [authStatus, setAuthStatus] = useState("signed-out");
   const [qrSession, setQrSession] = useState("");
   const [qrImage, setQrImage] = useState("");
@@ -54,6 +54,10 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
   const messagesContainerRef = useRef(null);
   const pendingScrollAdjustRef = useRef(null);
   const shouldStickToBottomRef = useRef(true);
+  const selectedConversation = useMemo(
+    () => conversations.find((conversation) => conversation.id === selectedConversationId) || null,
+    [conversations, selectedConversationId]
+  );
 
   const sortConversations = useCallback((list) => {
     const copy = [...(list || [])];
@@ -145,8 +149,7 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
     const appendMessage = (msg) => {
       if (!msg?.id || !msg?.conversation_id) return;
 
-      // Reset per conversation.
-      if (selectedConversation?.id !== msg.conversation_id) return;
+      if (selectedConversationId !== msg.conversation_id) return;
 
       setMessages(prev => {
         if (prev.some(m => m.id === msg.id)) return prev;
@@ -178,7 +181,7 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
           setAuthStatus("signed-out");
           setConversations([]);
           setMessages([]);
-          setSelectedConversation(null);
+          setSelectedConversationId(null);
           return;
         }
 
@@ -187,7 +190,7 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
         const msg = data?.message || await fetchMessage(data.message_id);
         if (msg) {
           appendMessage(msg);
-          if (data.type === "message.received" && selectedConversation?.id === msg.conversation_id) {
+          if (data.type === "message.received" && selectedConversationId === msg.conversation_id) {
             await markConversationRead(msg.conversation_id);
           }
         }
@@ -253,7 +256,7 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
       }
       try { ws?.close(); } catch { }
     };
-  }, [token, authStatus, authHeaders, selectedConversation, markConversationRead, sortConversations, loadDashboard]);
+  }, [token, authStatus, authHeaders, selectedConversationId, markConversationRead, sortConversations, loadDashboard]);
 
   useEffect(() => {
     if (authStatus === "signed-in") {
@@ -517,7 +520,7 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
     setAuthStatus("signed-out");
     setConversations([]);
     setMessages([]);
-    setSelectedConversation(null);
+    setSelectedConversationId(null);
   };
 
   const formatTime = (dateStr) => {
@@ -588,10 +591,10 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
       );
     }
     return out;
-  }, [messages, isGroupConversation]);
+  }, [messages, isGroupConversation, token]);
 
   const selectConversation = (conv) => {
-    setSelectedConversation(conv);
+    setSelectedConversationId(conv.id);
     setShowAIChat(false);
     setAiChatError("");
   };
@@ -664,7 +667,7 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
               return (
                 <div
                   key={conv.id}
-                  className={`conversation-item ${selectedConversation?.id === conv.id ? "active" : ""}`}
+                  className={`conversation-item ${selectedConversationId === conv.id ? "active" : ""}`}
                   onClick={() => selectConversation(conv)}
                 >
                   <Avatar className="conv-avatar" src={avatarSrc} name={name} />
