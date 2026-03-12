@@ -23,10 +23,11 @@ type API struct {
 	HealthScheduler *llm.HealthScheduler
 	WorkerScheduler *llm.WorkerScheduler
 	WhatsApp        *whatsapp.Manager
+	MediaDir        string
 }
 
-func NewAPI(store *db.Store, authService *auth.Service, hub *realtime.Hub, llmService *llm.Service, llmStore *llm.Store, queue *llm.Queue, scheduler *llm.HealthScheduler, workerScheduler *llm.WorkerScheduler, waManager *whatsapp.Manager) *API {
-	return &API{Store: store, Auth: authService, Hub: hub, LLM: llmService, LLMStore: llmStore, Queue: queue, HealthScheduler: scheduler, WorkerScheduler: workerScheduler, WhatsApp: waManager}
+func NewAPI(store *db.Store, authService *auth.Service, hub *realtime.Hub, llmService *llm.Service, llmStore *llm.Store, queue *llm.Queue, scheduler *llm.HealthScheduler, workerScheduler *llm.WorkerScheduler, waManager *whatsapp.Manager, mediaDir string) *API {
+	return &API{Store: store, Auth: authService, Hub: hub, LLM: llmService, LLMStore: llmStore, Queue: queue, HealthScheduler: scheduler, WorkerScheduler: workerScheduler, WhatsApp: waManager, MediaDir: mediaDir}
 }
 
 func (a *API) tenantID(r *http.Request) int64 {

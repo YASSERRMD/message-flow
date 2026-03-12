@@ -44,11 +44,14 @@ services:
       PORT: "8080"
       FRONTEND_ORIGIN: http://localhost:5173
       REDIS_URL: redis://redis:6379/0
+      MEDIA_DIR: /app/media
     depends_on:
       migrate:
         condition: service_completed_successfully
       redis:
         condition: service_started
+    volumes:
+      - media_data:/app/media
     ports:
       - "8081:8080"
 
@@ -68,3 +71,4 @@ services:
 
 volumes:
   db_data:
+  media_data:

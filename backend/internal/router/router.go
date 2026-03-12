@@ -162,7 +162,15 @@ func (rt *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case strings.HasPrefix(path, "/api/v1/messages/"):
 		// Only handle the `/messages/:id` shape. Keep named subroutes like `/messages/forward`.
 		idPart := strings.TrimPrefix(path, "/api/v1/messages/")
-		if id, ok := handlers.ParseID(idPart); ok {
+		segments := strings.Split(idPart, "/")
+		if len(segments) == 2 && segments[1] == "media" {
+			if id, ok := handlers.ParseID(segments[0]); ok {
+				if r.Method == http.MethodGet {
+					rt.api.GetMessageMedia(w, r, id)
+					return
+				}
+			}
+		} else if id, ok := handlers.ParseID(idPart); ok {
 			if r.Method == http.MethodGet {
 				rt.api.GetMessage(w, r, id)
 				return

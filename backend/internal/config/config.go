@@ -9,6 +9,7 @@ type Config struct {
 	FrontendOrigin string
 	RedisURL       string
 	MasterKey      string
+	MediaDir       string
 }
 
 func Load() Config {
@@ -19,12 +20,16 @@ func Load() Config {
 		FrontendOrigin: os.Getenv("FRONTEND_ORIGIN"),
 		RedisURL:       os.Getenv("REDIS_URL"),
 		MasterKey:      os.Getenv("MASTER_KEY"),
+		MediaDir:       os.Getenv("MEDIA_DIR"),
 	}
 	if cfg.Port == "" {
 		cfg.Port = "8080"
 	}
 	if cfg.FrontendOrigin == "" {
 		cfg.FrontendOrigin = "http://localhost:5173"
+	}
+	if cfg.MediaDir == "" {
+		cfg.MediaDir = "/app/media"
 	}
 	return cfg
 }

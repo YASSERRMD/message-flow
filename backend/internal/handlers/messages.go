@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -72,6 +73,58 @@ func (a *API) GetMessage(w http.ResponseWriter, r *http.Request, messageID int64
 	}
 
 	writeJSON(w, http.StatusOK, msg)
+}
+
+func (a *API) GetMessageMedia(w http.ResponseWriter, r *http.Request, messageID int64) {
+	tenantID := a.tenantID(r)
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	var metadataJSON *string
+	if err := a.Store.WithTenantConn(ctx, tenantID, func(conn *pgxpool.Conn) error {
+		return conn.QueryRow(ctx, `
+			SELECT metadata_json
+			FROM messages
+			WHERE tenant_id=$1 AND id=$2`, tenantID, messageID).Scan(&metadataJSON)
+	}); err != nil {
+		writeError(w, http.StatusNotFound, "message not found")
+		return
+	}
+
+	if metadataJSON == nil || *metadataJSON == "" {
+		writeError(w, http.StatusNotFound, "no media for this message")
+		return
+	}
+
+	var meta map[string]any
+	if err := json.Unmarshal([]byte(*metadataJSON), &meta); err != nil {
+		writeError(w, http.StatusInternalServerError, "invalid metadata")
+		return
+	}
+
+	mediaMap, _ := meta["media"].(map[string]any)
+	if mediaMap == nil {
+		writeError(w, http.StatusNotFound, "no media for this message")
+		return
+	}
+	mediaPath, _ := mediaMap["media_path"].(string)
+	if mediaPath == "" {
+		writeError(w, http.StatusNotFound, "media file not available")
+		return
+	}
+
+	absPath := a.MediaDir + "/" + mediaPath
+	if _, err := os.Stat(absPath); os.IsNotExist(err) {
+		writeError(w, http.StatusNotFound, "media file not found on disk")
+		return
+	}
+
+	// Set Content-Type from metadata
+	if mimeType, ok := mediaMap["mime_type"].(string); ok && mimeType != "" {
+		w.Header().Set("Content-Type", mimeType)
+	}
+
+	http.ServeFile(w, r, absPath)
 }
 
 func (a *API) ReplyMessage(w http.ResponseWriter, r *http.Request) {
