@@ -15,7 +15,7 @@ const defaultSummary = {
   open_action_items: 0
 };
 
-export default function DashboardPage({ onNavigate, searchTerm = "" }) {
+export default function DashboardPage({ onNavigate, searchTerm = "", onMetaChange }) {
 
   const [theme, setTheme] = useStoredState("mf-theme", "light");
   const [token, setToken] = useStoredState("mf-token", "");
@@ -51,6 +51,10 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
   const [aiChatLoading, setAiChatLoading] = useState(false);
   const [aiChatError, setAiChatError] = useState("");
   const [aiTurnsByConversation, setAiTurnsByConversation] = useState({});
+  const [syncingContacts, setSyncingContacts] = useState(false);
+  const [taskDescription, setTaskDescription] = useState("");
+  const [taskDueDate, setTaskDueDate] = useState("");
+  const [taskSaving, setTaskSaving] = useState(false);
   const messagesContainerRef = useRef(null);
   const pendingScrollAdjustRef = useRef(null);
   const shouldStickToBottomRef = useRef(true);
@@ -346,6 +350,20 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
     return list;
   }, [conversations, filter, searchTerm]);
 
+  const unreadCount = useMemo(
+    () => conversations.reduce((total, conversation) => total + (conversation.unread_count || 0), 0),
+    [conversations]
+  );
+
+  useEffect(() => {
+    if (typeof onMetaChange !== "function") return;
+    onMetaChange({
+      connected: authStatus === "signed-in",
+      conversationsCount: conversations.length,
+      unreadCount
+    });
+  }, [authStatus, conversations.length, unreadCount, onMetaChange]);
+
   const startWhatsAppConnect = async () => {
     setQrStatus("loading");
     setQrError("");
@@ -441,6 +459,24 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
     }
   };
 
+  const handleSyncContacts = async () => {
+    setSyncingContacts(true);
+    try {
+      await fetch(`${API_BASE}/auth/whatsapp/sync-contacts`, {
+        method: "POST",
+        headers: authHeaders
+      });
+      await loadDashboard();
+      if (selectedConversation) {
+        await loadMessages(selectedConversation.id, 1);
+      }
+    } catch {
+      alert("Failed to sync contacts");
+    } finally {
+      setSyncingContacts(false);
+    }
+  };
+
   const handleSummarize = async () => {
     if (!selectedConversation) return;
     setSummaryLoading(true);
@@ -521,6 +557,34 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
     setConversations([]);
     setMessages([]);
     setSelectedConversationId(null);
+  };
+
+  const handleCreateTask = async (event) => {
+    event.preventDefault();
+    if (!selectedConversation || !taskDescription.trim() || taskSaving) return;
+    setTaskSaving(true);
+    try {
+      const res = await fetch(`${API_BASE}/action-items`, {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({
+          conversation_id: selectedConversation.id,
+          description: taskDescription.trim(),
+          status: "new",
+          due_date: taskDueDate || null
+        })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || `HTTP ${res.status}`);
+      }
+      setTaskDescription("");
+      setTaskDueDate("");
+    } catch (err) {
+      alert(err?.message || "Failed to create task");
+    } finally {
+      setTaskSaving(false);
+    }
   };
 
   const formatTime = (dateStr) => {
@@ -652,7 +716,17 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
         {/* Conversations Sidebar */}
         <aside className="conversations-sidebar">
           <div className="sidebar-header">
-            <h2 className="sidebar-title">Conversations</h2>
+            <div className="sidebar-heading-row">
+              <div>
+                <h2 className="sidebar-title">Conversations</h2>
+                <p className="sidebar-subtitle">
+                  {conversations.length} chats · {unreadCount} unread messages
+                </p>
+              </div>
+              <button className="sidebar-sync-btn" onClick={handleSyncContacts} disabled={syncingContacts}>
+                <i className={`fas ${syncingContacts ? "fa-spinner fa-spin" : "fa-rotate"}`}></i>
+              </button>
+            </div>
             <div className="filter-tabs">
               <button className={`tab ${filter === "all" ? "active" : ""}`} onClick={() => setFilter("all")}>All</button>
               <button className={`tab ${filter === "unread" ? "active" : ""}`} onClick={() => setFilter("unread")}>Unread</button>
@@ -660,6 +734,13 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
             </div>
           </div>
           <div className="conversations-list">
+            {filteredConversations.length === 0 && (
+              <div className="sidebar-empty-state">
+                <div className="sidebar-empty-icon"><i className="fas fa-comments"></i></div>
+                <h3>No conversations yet</h3>
+                <p>Pair WhatsApp and run a sync to load chats into the inbox.</p>
+              </div>
+            )}
             {filteredConversations.map((conv) => {
               const name = conv.contact_name || (conv.contact_number || "").split("@")[0] || "Unknown";
               const isGroup = conv.is_group ?? ((conv.contact_number || "").includes("@g.us") || (conv.contact_number || "").startsWith("12036"));
@@ -704,19 +785,17 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
                   <div className="chat-details">
                     <h3>{selectedConversation.contact_name || (selectedConversation.contact_number || "").split("@")[0]}</h3>
                     <p>{selectedConversation.contact_number}</p>
+                    <div className="chat-detail-chips">
+                      <span className="chat-chip">{isGroupConversation ? "Group" : "Direct chat"}</span>
+                      <span className="chat-chip">{messages.length} loaded messages</span>
+                    </div>
                   </div>
                 </div>
                 <div className="chat-actions">
-                  <button className="action-btn" onClick={async () => {
-                    const btn = document.getElementById('sync-btn');
-                    if (btn) btn.innerText = 'Syncing...';
-                    try {
-                      await fetch(`${API_BASE}/auth/whatsapp/sync-contacts`, { method: 'POST', headers: authHeaders });
-                      await loadDashboard();
-                    } catch (e) { }
-                    if (btn) btn.innerText = 'Sync Contacts';
-                  }} id="sync-btn"><i className="fas fa-sync"></i> Sync Contacts</button>
-                  {/* <button className="action-btn"><i className="fas fa-search"></i> Search</button> */}
+                  <button className="action-btn" onClick={handleSyncContacts} disabled={syncingContacts}>
+                    <i className={`fas ${syncingContacts ? "fa-spinner fa-spin" : "fa-sync"}`}></i>
+                    {syncingContacts ? "Syncing..." : "Sync Contacts"}
+                  </button>
                   <button className="action-btn" onClick={() => { setAiChatError(""); setShowAIChat(true); }}><i className="fas fa-robot"></i> Ask AI</button>
                   <button className="action-btn primary" onClick={handleSummarize}><i className="fas fa-sparkles"></i> Summarize</button>
                 </div>
@@ -733,10 +812,9 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
 
               <div className="message-input-area">
                 <div className="input-wrapper">
-                  <button className="attach-btn"><i className="fas fa-paperclip"></i></button>
                   <textarea
                     className="input-field"
-                    placeholder="Type your message..."
+                    placeholder="Type a WhatsApp reply..."
                     rows="1"
                     value={replyText}
                     onChange={(e) => setReplyText(e.target.value)}
@@ -789,50 +867,57 @@ export default function DashboardPage({ onNavigate, searchTerm = "" }) {
 
           <div className="info-section">
             <h4 className="section-title">Quick Actions</h4>
-            <div className="action-list-item">
+            <button className="action-list-item" onClick={handleSummarize} disabled={!selectedConversation}>
               <div className="action-icon-small"><i className="fas fa-sparkles"></i></div>
               <div className="action-text-small">
                 <div className="action-title-small">AI Summary</div>
                 <div className="action-desc-small">Get conversation insights</div>
               </div>
-            </div>
-            <div className="action-list-item">
-              <div className="action-icon-small"><i className="fas fa-chart-bar"></i></div>
+            </button>
+            <button className="action-list-item" onClick={() => { setAiChatError(""); setShowAIChat(true); }} disabled={!selectedConversation}>
+              <div className="action-icon-small"><i className="fas fa-robot"></i></div>
               <div className="action-text-small">
-                <div className="action-title-small">Analytics</div>
-                <div className="action-desc-small">View detailed stats</div>
+                <div className="action-title-small">Ask AI</div>
+                <div className="action-desc-small">Query the selected conversation</div>
               </div>
-            </div>
-            <div className="action-list-item">
-              <div className="action-icon-small"><i className="fas fa-star"></i></div>
+            </button>
+            <button className="action-list-item" onClick={handleSyncContacts} disabled={syncingContacts}>
+              <div className="action-icon-small"><i className={`fas ${syncingContacts ? "fa-spinner fa-spin" : "fa-rotate"}`}></i></div>
               <div className="action-text-small">
-                <div className="action-title-small">Important</div>
-                <div className="action-desc-small">View flagged messages</div>
+                <div className="action-title-small">Sync WhatsApp</div>
+                <div className="action-desc-small">Refresh contacts and conversation metadata</div>
               </div>
-            </div>
+            </button>
           </div>
 
           <div className="info-section">
             <h4 className="section-title">Create Task</h4>
-            <div className="create-task-form">
+            <form className="create-task-form" onSubmit={handleCreateTask}>
               <div className="form-group">
                 <label className="form-label">Task Description</label>
-                <input type="text" className="form-input" placeholder="Enter task..." />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Category</label>
-                <select className="form-input">
-                  <option>Conversation</option>
-                  <option>Personal</option>
-                  <option>Team</option>
-                </select>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder={selectedConversation ? "Create a follow-up task..." : "Select a conversation first"}
+                  value={taskDescription}
+                  onChange={(event) => setTaskDescription(event.target.value)}
+                  disabled={!selectedConversation || taskSaving}
+                />
               </div>
               <div className="form-group">
                 <label className="form-label">Due Date</label>
-                <input type="date" className="form-input" />
+                <input
+                  type="date"
+                  className="form-input"
+                  value={taskDueDate}
+                  onChange={(event) => setTaskDueDate(event.target.value)}
+                  disabled={!selectedConversation || taskSaving}
+                />
               </div>
-              <button className="submit-btn">Create Task</button>
-            </div>
+              <button className="submit-btn" type="submit" disabled={!selectedConversation || !taskDescription.trim() || taskSaving}>
+                {taskSaving ? "Creating..." : "Create Task"}
+              </button>
+            </form>
           </div>
         </aside>
       </div>
