@@ -50,7 +50,7 @@ export default function TopHeader({
 
                 <div style={{ width: '1px', background: '#e5e7eb', margin: '0 8px' }}></div>
 
-                <div className={`nav-icon-btn ${activeView === "collab" ? "active" : ""}`} title="Notifications & Activity" onClick={() => onNavigate && onNavigate('collab')}>
+                <div className="nav-icon-btn" title="Notifications & Activity" onClick={() => onNavigate && onNavigate('collab')}>
                     <i className="fas fa-bell"></i>
                 </div>
                 <div className="nav-icon-btn" title="Toggle Theme" onClick={() => setTheme(theme === "light" ? "dark" : "light")}>
