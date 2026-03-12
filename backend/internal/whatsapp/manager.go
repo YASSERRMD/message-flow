@@ -187,7 +187,8 @@ func (m *Manager) ClientForTenant(tenantID int64) (*whatsmeow.Client, error) {
 }
 
 // SendMessage sends a text message to a specific JID using the tenant's active session
-func (m *Manager) SendMessage(ctx context.Context, tenantID int64, recipientJID string, content string) error {
+// and returns the WhatsApp-assigned message ID for deduping mirrored events.
+func (m *Manager) SendMessage(ctx context.Context, tenantID int64, recipientJID string, content string) (types.MessageID, error) {
 	m.mu.RLock()
 	var client *whatsmeow.Client
 	for _, session := range m.sessions {
@@ -199,7 +200,7 @@ func (m *Manager) SendMessage(ctx context.Context, tenantID int64, recipientJID 
 	m.mu.RUnlock()
 
 	if client == nil {
-		return errors.New("no connected whatsapp session found for tenant")
+		return "", errors.New("no connected whatsapp session found for tenant")
 	}
 
 	// Ensure JID has a domain
@@ -213,7 +214,7 @@ func (m *Manager) SendMessage(ctx context.Context, tenantID int64, recipientJID 
 
 	jid, err := types.ParseJID(recipientJID)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	// Check if user is on WhatsApp to prime the cache (fixes no LID found error)
@@ -221,10 +222,13 @@ func (m *Manager) SendMessage(ctx context.Context, tenantID int64, recipientJID 
 		_, _ = client.IsOnWhatsApp(ctx, []string{jid.User})
 	}
 
-	_, err = client.SendMessage(ctx, jid, &waE2E.Message{
+	resp, err := client.SendMessage(ctx, jid, &waE2E.Message{
 		Conversation: &content,
 	})
-	return err
+	if err != nil {
+		return "", err
+	}
+	return resp.ID, nil
 }
 
 func (m *Manager) consumeQR(session *Session, qrChan <-chan whatsmeow.QRChannelItem, client *whatsmeow.Client) {
