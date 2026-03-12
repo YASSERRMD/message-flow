@@ -3,6 +3,8 @@ import useStoredState from "../hooks/useStoredState.js";
 import DailySummaryCard from "./DailySummaryCard";
 import ChatMessage from "./chat/ChatMessage.jsx";
 import Avatar from "./chat/Avatar.jsx";
+import MediaViewerModal from "./chat/MediaViewerModal.jsx";
+import { buildMediaItem, getMediaLabel } from "./chat/messageUtils.js";
 import { getApiBase, getWsBase } from "../lib/runtimeConfig.js";
 
 const API_BASE = getApiBase();
@@ -55,9 +57,13 @@ export default function DashboardPage({ onNavigate, searchTerm = "", onMetaChang
   const [taskDescription, setTaskDescription] = useState("");
   const [taskDueDate, setTaskDueDate] = useState("");
   const [taskSaving, setTaskSaving] = useState(false);
+  const [mediaFilter, setMediaFilter] = useState("all");
+  const [activeMediaMessageId, setActiveMediaMessageId] = useState(null);
+  const [highlightedMessageId, setHighlightedMessageId] = useState(null);
   const messagesContainerRef = useRef(null);
   const pendingScrollAdjustRef = useRef(null);
   const shouldStickToBottomRef = useRef(true);
+  const highlightTimerRef = useRef(null);
   const selectedConversation = useMemo(
     () => conversations.find((conversation) => conversation.id === selectedConversationId) || null,
     [conversations, selectedConversationId]
@@ -91,6 +97,12 @@ export default function DashboardPage({ onNavigate, searchTerm = "", onMetaChang
   useEffect(() => {
     if ("Notification" in window && Notification.permission === "default") {
       Notification.requestPermission();
+    }
+  }, []);
+
+  useEffect(() => () => {
+    if (highlightTimerRef.current) {
+      window.clearTimeout(highlightTimerRef.current);
     }
   }, []);
 
@@ -626,6 +638,54 @@ export default function DashboardPage({ onNavigate, searchTerm = "", onMetaChang
     );
   }, [selectedConversation]);
 
+  const loadedMediaItems = useMemo(() => (
+    messages
+      .map((message) => buildMediaItem(message, API_BASE, token))
+      .filter(Boolean)
+      .sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime())
+  ), [messages, token]);
+
+  const mediaFilterOptions = useMemo(() => {
+    const counts = loadedMediaItems.reduce((acc, item) => {
+      acc[item.type] = (acc[item.type] || 0) + 1;
+      return acc;
+    }, {});
+
+    return [
+      { id: "all", label: "All media", count: loadedMediaItems.length },
+      ...["image", "video", "audio", "document", "sticker"]
+        .filter((type) => counts[type])
+        .map((type) => ({ id: type, label: getMediaLabel(type), count: counts[type] }))
+    ];
+  }, [loadedMediaItems]);
+
+  const filteredMediaItems = useMemo(() => {
+    if (mediaFilter === "all") return loadedMediaItems;
+    return loadedMediaItems.filter((item) => item.type === mediaFilter);
+  }, [loadedMediaItems, mediaFilter]);
+
+  const activeMediaIndex = useMemo(() => (
+    filteredMediaItems.findIndex((item) => item.id === activeMediaMessageId)
+  ), [filteredMediaItems, activeMediaMessageId]);
+
+  const activeMediaItem = activeMediaIndex >= 0 ? filteredMediaItems[activeMediaIndex] : null;
+
+  useEffect(() => {
+    setMediaFilter("all");
+    setActiveMediaMessageId(null);
+    setHighlightedMessageId(null);
+    if (highlightTimerRef.current) {
+      window.clearTimeout(highlightTimerRef.current);
+      highlightTimerRef.current = null;
+    }
+  }, [selectedConversationId]);
+
+  useEffect(() => {
+    if (!activeMediaMessageId) return;
+    if (filteredMediaItems.some((item) => item.id === activeMediaMessageId)) return;
+    setActiveMediaMessageId(filteredMediaItems[0]?.id || null);
+  }, [activeMediaMessageId, filteredMediaItems]);
+
   const renderedMessages = useMemo(() => {
     const out = [];
     let lastDayKey = null;
@@ -651,11 +711,13 @@ export default function DashboardPage({ onNavigate, searchTerm = "", onMetaChang
           formatTime={formatTime}
           token={token}
           apiBase={API_BASE}
+          onPreviewMedia={setActiveMediaMessageId}
+          isHighlighted={highlightedMessageId === msg.id}
         />
       );
     }
     return out;
-  }, [messages, isGroupConversation, token]);
+  }, [messages, isGroupConversation, token, highlightedMessageId]);
 
   const selectConversation = (conv) => {
     setSelectedConversationId(conv.id);
@@ -680,6 +742,20 @@ export default function DashboardPage({ onNavigate, searchTerm = "", onMetaChang
         .finally(() => setLoadingMore(false));
     }
   }, [loadingMore, selectedConversation, hasMoreMessages, loadMessages, messagesPage]);
+
+  const focusMessage = useCallback((messageId) => {
+    const element = document.getElementById(`message-${messageId}`);
+    if (!element) return;
+    if (highlightTimerRef.current) {
+      window.clearTimeout(highlightTimerRef.current);
+    }
+    setHighlightedMessageId(messageId);
+    element.scrollIntoView({ behavior: "smooth", block: "center" });
+    highlightTimerRef.current = window.setTimeout(() => {
+      setHighlightedMessageId((current) => (current === messageId ? null : current));
+      highlightTimerRef.current = null;
+    }, 1800);
+  }, []);
 
   // Not connected - show QR panel
   if (authStatus !== "signed-in") {
@@ -890,6 +966,92 @@ export default function DashboardPage({ onNavigate, searchTerm = "", onMetaChang
             </button>
           </div>
 
+          {selectedConversation && (
+            <div className="info-section media-library-section">
+              <div className="section-heading-row">
+                <div>
+                  <h4 className="section-title">Media Library</h4>
+                  <p className="section-subtitle">
+                    {loadedMediaItems.length} attachments in the loaded timeline
+                  </p>
+                </div>
+                {filteredMediaItems[0] && (
+                  <button
+                    type="button"
+                    className="section-link-btn"
+                    onClick={() => setActiveMediaMessageId(filteredMediaItems[0].id)}
+                  >
+                    Open viewer
+                  </button>
+                )}
+              </div>
+
+              {loadedMediaItems.length > 0 ? (
+                <>
+                  <div className="media-filter-row">
+                    {mediaFilterOptions.map((option) => (
+                      <button
+                        key={option.id}
+                        type="button"
+                        className={`media-filter-pill ${mediaFilter === option.id ? "active" : ""}`}
+                        onClick={() => setMediaFilter(option.id)}
+                      >
+                        <span>{option.label}</span>
+                        <strong>{option.count}</strong>
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="media-library-grid">
+                    {filteredMediaItems.slice(0, 8).map((item) => (
+                      <div key={item.id} className={`media-library-card ${item.type}`}>
+                        <button
+                          type="button"
+                          className="media-library-card-main"
+                          onClick={() => setActiveMediaMessageId(item.id)}
+                        >
+                          {item.url && (item.type === "image" || item.type === "sticker") ? (
+                            <div className="media-library-thumb">
+                              <img src={item.url} alt={item.fileName} loading="lazy" />
+                            </div>
+                          ) : (
+                            <div className="media-library-icon-tile">
+                              <i className={`fas ${item.icon}`}></i>
+                            </div>
+                          )}
+                          <div className="media-library-copy">
+                            <span className="media-library-kind">{item.label}</span>
+                            <strong>{item.fileName}</strong>
+                            <small>{[item.durationLabel, item.sizeLabel].filter(Boolean).join(" • ") || formatTime(item.timestamp)}</small>
+                          </div>
+                        </button>
+                        <div className="media-library-actions">
+                          <button type="button" className="library-mini-btn" onClick={() => focusMessage(item.id)}>
+                            Locate
+                          </button>
+                          {item.url && (
+                            <a
+                              href={item.url}
+                              download={item.fileName}
+                              className="library-mini-btn"
+                            >
+                              Save
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <div className="media-library-empty">
+                  <div className="media-library-empty-icon"><i className="fas fa-photo-film"></i></div>
+                  <p>Images, videos, audio notes, and documents from this chat will appear here.</p>
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="info-section">
             <h4 className="section-title">Create Task</h4>
             <form className="create-task-form" onSubmit={handleCreateTask}>
@@ -921,6 +1083,30 @@ export default function DashboardPage({ onNavigate, searchTerm = "", onMetaChang
           </div>
         </aside>
       </div>
+
+      {activeMediaItem && (
+        <MediaViewerModal
+          item={activeMediaItem}
+          items={filteredMediaItems}
+          activeIndex={activeMediaIndex}
+          onClose={() => setActiveMediaMessageId(null)}
+          onPrev={() => {
+            if (activeMediaIndex > 0) {
+              setActiveMediaMessageId(filteredMediaItems[activeMediaIndex - 1].id);
+            }
+          }}
+          onNext={() => {
+            if (activeMediaIndex < filteredMediaItems.length - 1) {
+              setActiveMediaMessageId(filteredMediaItems[activeMediaIndex + 1].id);
+            }
+          }}
+          onSelect={setActiveMediaMessageId}
+          onLocate={(messageId) => {
+            setActiveMediaMessageId(null);
+            focusMessage(messageId);
+          }}
+        />
+      )}
 
       {/* Summary Modal */}
       {showSummary && (
