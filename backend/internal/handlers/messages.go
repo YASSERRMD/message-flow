@@ -149,6 +149,9 @@ func (a *API) ReplyMessage(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	var message models.Message
+	var metadataJSON *string
+	storedSender := sender
+	var whatsappMessageID string
 
 	// Get recipient number from conversation
 	var recipient string
@@ -164,21 +167,34 @@ func (a *API) ReplyMessage(w http.ResponseWriter, r *http.Request) {
 
 	// Send via WhatsApp
 	if a.WhatsApp != nil {
-		if err := a.WhatsApp.SendMessage(ctx, tenantID, recipient, req.Content); err != nil {
+		messageID, err := a.WhatsApp.SendMessage(ctx, tenantID, recipient, req.Content)
+		if err != nil {
 			// Log error but continue to save (or should we fail? usually better to fail if send fails)
 			// But for now, let's return error so user knows
 			writeError(w, http.StatusInternalServerError, "failed to send whatsapp message: "+err.Error())
 			return
 		}
+		whatsappMessageID = string(messageID)
+		storedSender = "me"
+		meta := map[string]any{
+			"source":      "whatsapp",
+			"whatsapp_id": whatsappMessageID,
+			"sender":      storedSender,
+			"chat":        recipient,
+		}
+		if metaBytes, err := json.Marshal(meta); err == nil {
+			value := string(metaBytes)
+			metadataJSON = &value
+		}
 	}
 
 	query := `
 		INSERT INTO messages (tenant_id, conversation_id, sender, content, timestamp, metadata_json, created_at)
-		VALUES ($1, $2, $3, $4, $5, NULL, $6)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		RETURNING id, tenant_id, conversation_id, sender, content, timestamp, metadata_json, created_at`
 
 	if err := a.Store.WithTenantConn(ctx, tenantID, func(conn *pgxpool.Conn) error {
-		return conn.QueryRow(ctx, query, tenantID, req.ConversationID, sender, req.Content, now, now).Scan(
+		return conn.QueryRow(ctx, query, tenantID, req.ConversationID, storedSender, req.Content, now, metadataJSON, now).Scan(
 			&message.ID, &message.TenantID, &message.ConversationID, &message.Sender, &message.Content, &message.Timestamp, &message.MetadataJSON, &message.CreatedAt,
 		)
 	}); err != nil {
